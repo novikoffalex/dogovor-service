@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpWord\TemplateProcessor;
 
 class ManychatContractController extends Controller
@@ -25,17 +26,28 @@ class ManychatContractController extends Controller
             'bank_swift'       => 'nullable|string|max:20',
         ]);
 
-        $tpl = new TemplateProcessor(resource_path('contracts/Exchange_dogovor.docx'));
-        foreach ($data as $k => $v) {
-            $tpl->setValue($k, $v);
+        try {
+            $tpl = new TemplateProcessor(resource_path('contracts/Exchange_dogovor.docx'));
+            foreach ($data as $k => $v) {
+                $tpl->setValue($k, $v);
+            }
+
+            $rel = 'contracts/contract_'.now()->format('Ymd_His').'.docx';
+            $tmp = storage_path('app/'.$rel);
+            @mkdir(dirname($tmp), 0775, true);
+            $tpl->saveAs($tmp);
+
+            Storage::disk('public')->put($rel, file_get_contents($tmp));
+            return response()->json(['contract_url' => Storage::disk('public')->url($rel)]);
+        } catch (\Throwable $e) {
+            Log::error('Contract generation failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'error' => 'contract_generation_failed',
+                'message' => $e->getMessage(),
+            ], 500);
         }
-
-        $rel = 'contracts/contract_'.now()->format('Ymd_His').'.docx';
-        $tmp = storage_path('app/'.$rel);
-        @mkdir(dirname($tmp), 0775, true);
-        $tpl->saveAs($tmp);
-
-        Storage::disk('public')->put($rel, file_get_contents($tmp));
-        return response()->json(['contract_url' => Storage::disk('public')->url($rel)]);
     }
 }
