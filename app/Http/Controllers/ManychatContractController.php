@@ -67,8 +67,8 @@ class ManychatContractController extends Controller
             @mkdir(dirname($tmp), 0775, true);
             $tpl->saveAs($tmp);
 
-            Storage::disk('public')->put($rel, file_get_contents($tmp));
-            return response()->json(['contract_url' => Storage::disk('public')->url($rel)]);
+            Storage::put($rel, file_get_contents($tmp), ['visibility' => 'public']);
+            return response()->json(['contract_url' => Storage::url($rel)]);
         } catch (\Throwable $e) {
             Log::error('Contract generation failed', [
                 'message' => $e->getMessage(),
