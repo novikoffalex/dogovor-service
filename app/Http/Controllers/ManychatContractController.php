@@ -16,8 +16,9 @@ class ManychatContractController extends Controller
         }
         $data = $request->validate([
             'client_full_name' => 'required|string|max:255',
-            'passport_series'  => 'required|string|max:10',
-            'passport_number'  => 'required|string|max:20',
+            'passport_series'  => 'nullable|string|max:10',
+            'passport_number'  => 'nullable|string|max:20',
+            'passport_full'    => 'nullable|string|max:50',
             'inn'              => 'required|string|max:20',
             'client_address'   => 'required|string|max:500',
             'bank_name'        => 'required|string|max:255',
@@ -25,6 +26,35 @@ class ManychatContractController extends Controller
             'bank_bik'         => 'required|string|max:20',
             'bank_swift'       => 'nullable|string|max:20',
         ]);
+
+        // If only one combined passport field is provided, try to split it
+        if (empty($data['passport_series']) && empty($data['passport_number']) && !empty($data['passport_full'])) {
+            $full = trim((string) $data['passport_full']);
+            // Normalize separators
+            $full = preg_replace('/\s+/u', ' ', $full);
+            if (preg_match('/^([A-Za-z0-9]{2,4})\D*([A-Za-z0-9]{3,})$/u', $full, $m)) {
+                $data['passport_series'] = $m[1];
+                $data['passport_number'] = $m[2];
+            } else {
+                // Fallback: split by first space if exists
+                $parts = preg_split('/\s+/', $full, 2);
+                if (count($parts) === 2) {
+                    $data['passport_series'] = $parts[0];
+                    $data['passport_number'] = $parts[1];
+                }
+            }
+        }
+
+        // Final guard: require that after parsing we have separate fields
+        if (empty($data['passport_series']) || empty($data['passport_number'])) {
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => [
+                    'passport_series' => ['The passport series field is required.'],
+                    'passport_number' => ['The passport number field is required.'],
+                ],
+            ], 422);
+        }
 
         try {
             $tpl = new TemplateProcessor(resource_path('contracts/Exchange_dogovor.docx'));
