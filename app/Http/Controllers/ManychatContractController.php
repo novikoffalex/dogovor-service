@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpWord\TemplateProcessor;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class ManychatContractController extends Controller
 {
@@ -19,6 +21,7 @@ class ManychatContractController extends Controller
             'passport_series'  => 'nullable|string|max:10',
             'passport_number'  => 'nullable|string|max:20',
             'passport_full'    => 'nullable|string|max:50',
+            'contract_number'  => 'nullable|string|max:50',
             'inn'              => 'required|string|max:20',
             'client_address'   => 'required|string|max:500',
             'bank_name'        => 'required|string|max:255',
@@ -27,7 +30,6 @@ class ManychatContractController extends Controller
             'bank_swift'       => 'nullable|string|max:20',
         ]);
 
-        // If only one combined passport field is provided, try to split it
         if (empty($data['passport_series']) && empty($data['passport_number']) && !empty($data['passport_full'])) {
             $full = trim((string) $data['passport_full']);
             // Normalize separators
@@ -45,7 +47,6 @@ class ManychatContractController extends Controller
             }
         }
 
-        // Final guard: require that after parsing we have separate fields
         if (empty($data['passport_series']) || empty($data['passport_number'])) {
             return response()->json([
                 'message' => 'Validation error',
@@ -56,13 +57,34 @@ class ManychatContractController extends Controller
             ], 422);
         }
 
+        if (empty($data['passport_full'])) {
+            $data['passport_full'] = trim(($data['passport_series'] ?? '').' '.($data['passport_number'] ?? ''));
+        }
+
+        // Generate sequential contract number if not provided: YYYYMMDD-001..999 (resets daily)
+        if (empty($data['contract_number'])) {
+            $today = now()->format('Ymd');
+            $key = 'contract_counter_'.$today;
+            // ensure counter exists and expires after day end
+            Cache::add($key, 0, now()->endOfDay()->addDay());
+            $current = (int) Cache::increment($key);
+            // keep the sequence within 1..1000 (wrap around after 1000)
+            $seq = (($current - 1) % 1000) + 1;
+            $data['contract_number'] = $today.'-'.str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
+        }
+
         try {
             $tpl = new TemplateProcessor(resource_path('contracts/Exchange_dogovor.docx'));
             foreach ($data as $k => $v) {
                 $tpl->setValue($k, $v);
             }
 
-            $rel = 'contracts/contract_'.now()->format('Ymd_His').'.docx';
+            // Build human-friendly filename: <Name>_<contract_number>.docx
+            $safeName = Str::slug($data['client_full_name'], '_');
+            if ($safeName === '') {
+                $safeName = 'contract';
+            }
+            $rel = 'contracts/'.$safeName.'_'.$data['contract_number'].'.docx';
             $tmp = storage_path('app/'.$rel);
             @mkdir(dirname($tmp), 0775, true);
             $tpl->saveAs($tmp);
