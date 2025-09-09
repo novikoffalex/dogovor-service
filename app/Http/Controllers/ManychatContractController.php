@@ -65,9 +65,11 @@ class ManychatContractController extends Controller
         if (empty($data['contract_number'])) {
             $today = now()->format('Ymd');
             $key = 'contract_counter_'.$today;
+            // use file cache explicitly to avoid DB cache store
+            $cache = Cache::store('file');
             // ensure counter exists and expires after day end
-            Cache::add($key, 0, now()->endOfDay()->addDay());
-            $current = (int) Cache::increment($key);
+            $cache->add($key, 0, now()->endOfDay()->addDay());
+            $current = (int) $cache->increment($key);
             // keep the sequence within 1..1000 (wrap around after 1000)
             $seq = (($current - 1) % 1000) + 1;
             $data['contract_number'] = $today.'-'.str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
@@ -79,7 +81,6 @@ class ManychatContractController extends Controller
                 $tpl->setValue($k, $v);
             }
 
-            // Build human-friendly filename: <Name>_<contract_number>.docx
             $safeName = Str::slug($data['client_full_name'], '_');
             if ($safeName === '') {
                 $safeName = 'contract';
