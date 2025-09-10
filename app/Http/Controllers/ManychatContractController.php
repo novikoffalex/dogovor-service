@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
-use PhpOffice\PhpWord\TemplateProcessor;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ManychatContractController extends Controller
 {
@@ -76,21 +76,25 @@ class ManychatContractController extends Controller
         }
 
         try {
-            $tpl = new TemplateProcessor(resource_path('contracts/Exchange_dogovor.docx'));
-            foreach ($data as $k => $v) {
-                $tpl->setValue($k, $v);
-            }
+            // Генерируем PDF из HTML-шаблона
+            $pdf = Pdf::loadView('contract', $data);
+            $pdf->setPaper('A4', 'portrait');
+            $pdf->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'Times New Roman'
+            ]);
 
             $safeName = Str::slug($data['client_full_name'], '_');
             if ($safeName === '') {
                 $safeName = 'contract';
             }
-            $rel = 'contracts/'.$safeName.'_'.$data['contract_number'].'.docx';
-            $tmp = storage_path('app/'.$rel);
-            @mkdir(dirname($tmp), 0775, true);
-            $tpl->saveAs($tmp);
+            $filename = $safeName.'_'.$data['contract_number'].'.pdf';
+            $rel = 'contracts/'.$filename;
 
-            Storage::put($rel, file_get_contents($tmp), ['visibility' => 'public']);
+            // Сохраняем PDF в хранилище
+            Storage::put($rel, $pdf->output(), ['visibility' => 'public']);
+            
             return response()->json(['contract_url' => Storage::url($rel)]);
         } catch (\Throwable $e) {
             Log::error('Contract generation failed', [
