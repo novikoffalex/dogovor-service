@@ -79,7 +79,7 @@ class ManychatContractController extends Controller
 
         try {
             // Генерируем DOCX из шаблона
-            $tpl = new TemplateProcessor(resource_path('contracts/Exchange_dogovor.docx'));
+            $tpl = new TemplateProcessor(resource_path('contracts/contract.docx'));
             // Безопасная подстановка данных без нарушения форматирования
             foreach ($data as $k => $v) {
                 // Очищаем данные от лишних символов
