@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
-use Barryvdh\DomPDF\Facade\Pdf;
+use PhpOffice\PhpWord\TemplateProcessor;
 
 class ManychatContractController extends Controller
 {
@@ -78,27 +78,24 @@ class ManychatContractController extends Controller
         }
 
         try {
-            // Генерируем PDF из HTML-шаблона
-            $pdf = Pdf::loadView('contract', $data);
-            $pdf->setPaper('A4', 'portrait');
-            $pdf->setOptions([
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'defaultFont' => 'DejaVu Sans',
-                'isPhpEnabled' => true,
-                'isJavascriptEnabled' => false,
-                'isFontSubsettingEnabled' => true
-            ]);
+            // Генерируем DOCX из шаблона
+            $tpl = new TemplateProcessor(resource_path('contracts/Exchange_dogovor.docx'));
+            foreach ($data as $k => $v) {
+                $tpl->setValue($k, $v);
+            }
 
             $safeName = Str::slug($data['client_full_name'], '_');
             if ($safeName === '') {
                 $safeName = 'contract';
             }
-            $filename = $safeName.'_'.$data['contract_number'].'.pdf';
+            $filename = $safeName.'_'.$data['contract_number'].'.docx';
             $rel = 'contracts/'.$filename;
+            $tmp = storage_path('app/'.$rel);
+            @mkdir(dirname($tmp), 0775, true);
+            $tpl->saveAs($tmp);
 
-            // Сохраняем PDF в хранилище
-            Storage::put($rel, $pdf->output(), ['visibility' => 'public']);
+            // Сохраняем DOCX в хранилище
+            Storage::put($rel, file_get_contents($tmp), ['visibility' => 'public']);
             
             return response()->json(['contract_url' => Storage::url($rel)]);
         } catch (\Throwable $e) {
