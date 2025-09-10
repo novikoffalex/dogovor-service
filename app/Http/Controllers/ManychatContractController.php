@@ -65,17 +65,12 @@ class ManychatContractController extends Controller
         // Generate sequential contract number if not provided: YYYYMMDD-001..999 (never resets)
         if (empty($data['contract_number'])) {
             $today = now()->format('Ymd');
+            $key = 'contract_counter_global';
             
-            // Use simple file-based counter for reliability
-            $counterFile = storage_path('app/contract_counter.txt');
-            $current = 1;
-            
-            if (file_exists($counterFile)) {
-                $current = (int) file_get_contents($counterFile) + 1;
-            }
-            
-            // Save new counter value
-            file_put_contents($counterFile, $current);
+            // Use database cache for persistence
+            $cache = Cache::store('database');
+            $cache->add($key, 0, now()->addYears(10));
+            $current = (int) $cache->increment($key);
             
             // keep the sequence within 1..999 (wrap around after 999)
             $seq = (($current - 1) % 999) + 1;
