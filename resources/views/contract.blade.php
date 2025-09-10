@@ -121,7 +121,7 @@
             <p>Банк: {{ $bank_name }}</p>
             <p>P/c: {{ $bank_account }}</p>
             <p>БИК: {{ $bank_bik }}</p>
-            @if($bank_swift)
+            @if(!empty($bank_swift))
             <p>SWIFT: {{ $bank_swift }}</p>
             @endif
         </div>

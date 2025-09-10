@@ -47,7 +47,8 @@ class ManychatContractController extends Controller
             }
         }
 
-        if (empty($data['passport_series']) || empty($data['passport_number'])) {
+        // Если нет отдельных полей И нет полного поля - ошибка
+        if ((empty($data['passport_series']) || empty($data['passport_number'])) && empty($data['passport_full'])) {
             return response()->json([
                 'message' => 'Validation error',
                 'errors' => [
