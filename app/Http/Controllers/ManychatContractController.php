@@ -66,8 +66,8 @@ class ManychatContractController extends Controller
         if (empty($data['contract_number'])) {
             $today = now()->format('Ymd');
             $key = 'contract_counter_global'; // Global counter, no date in key
-            // use file cache explicitly to avoid DB cache store
-            $cache = Cache::store('file');
+            // use database cache for persistence on cloud
+            $cache = Cache::store('database');
             // ensure counter exists and never expires (or very long expiry)
             $cache->add($key, 0, now()->addYears(10));
             $current = (int) $cache->increment($key);
