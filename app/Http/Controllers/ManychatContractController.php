@@ -76,6 +76,9 @@ class ManychatContractController extends Controller
             $seq = (($current - 1) % 999) + 1;
             $data['contract_number'] = $today.'-'.str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
         }
+        
+        // Генерируем дату в нужном формате
+        $data['contract_date'] = '«' . now()->format('d') . '» ' . now()->format('F Y') . ' г.';
 
         try {
             // Генерируем DOCX из шаблона
