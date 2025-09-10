@@ -79,16 +79,12 @@ class ManychatContractController extends Controller
 
         try {
             // Генерируем DOCX из шаблона
-            $tpl = new TemplateProcessor(resource_path('contracts/Exchange_dogovor.docx'));
+            $tpl = new TemplateProcessor(resource_path('contracts/contract.docx'));
             foreach ($data as $k => $v) {
                 $tpl->setValue($k, $v);
             }
 
-            $safeName = Str::slug($data['client_full_name'], '_');
-            if ($safeName === '') {
-                $safeName = 'contract';
-            }
-            $filename = $safeName.'_'.$data['contract_number'].'.docx';
+            $filename = 'contract.docx';
             $rel = 'contracts/'.$filename;
             $tmp = storage_path('app/'.$rel);
             @mkdir(dirname($tmp), 0775, true);
