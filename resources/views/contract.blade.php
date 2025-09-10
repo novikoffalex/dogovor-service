@@ -5,12 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Договор покупки-продажи виртуальных активов</title>
     <style>
+        @page {
+            margin: 2cm;
+        }
+        
         body {
-            font-family: 'Times New Roman', serif;
+            font-family: 'DejaVu Sans', sans-serif;
             font-size: 12pt;
             line-height: 1.4;
             margin: 0;
-            padding: 20px;
+            padding: 0;
             color: #000;
         }
         

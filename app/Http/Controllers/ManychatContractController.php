@@ -84,7 +84,10 @@ class ManychatContractController extends Controller
             $pdf->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isRemoteEnabled' => true,
-                'defaultFont' => 'Times New Roman'
+                'defaultFont' => 'DejaVu Sans',
+                'isPhpEnabled' => true,
+                'isJavascriptEnabled' => false,
+                'isFontSubsettingEnabled' => true
             ]);
 
             $safeName = Str::slug($data['client_full_name'], '_');
