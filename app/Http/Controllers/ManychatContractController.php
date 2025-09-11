@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use App\Jobs\GenerateContractJob;
+use PhpOffice\PhpWord\TemplateProcessor;
 
 class ManychatContractController extends Controller
 {
@@ -67,25 +68,93 @@ class ManychatContractController extends Controller
         ];
         $data['contract_date'] = '«' . now()->format('d') . '» ' . $months[now()->month] . ' ' . now()->format('Y') . ' г.';
 
-        // Отправляем задачу в очередь для асинхронной обработки
-        GenerateContractJob::dispatch($data);
-        
-        // Быстро отвечаем ManyChat
-        $safeName = Str::slug($data['client_full_name'], '_');
-        if ($safeName === '') {
-            $safeName = 'contract';
+        // Пытаемся отправить в очередь, если не получается - обрабатываем синхронно
+        try {
+            GenerateContractJob::dispatch($data);
+            
+            // Быстро отвечаем ManyChat
+            $safeName = Str::slug($data['client_full_name'], '_');
+            if ($safeName === '') {
+                $safeName = 'contract';
+            }
+            $filename = $safeName.'_'.$data['contract_number'];
+            
+            // Пока возвращаем DOCX, PDF будет готов позже
+            $docxRel = 'contracts/'.$filename.'.docx';
+            $contractUrl = Storage::url($docxRel);
+            
+            Log::info('Contract generation queued', [
+                'filename' => $filename,
+                'url' => $contractUrl
+            ]);
+            
+            return response()->json(['contract_url' => $contractUrl]);
+            
+        } catch (\Exception $e) {
+            Log::warning('Queue failed, falling back to sync processing', ['error' => $e->getMessage()]);
+            
+            // Fallback: быстрая генерация DOCX без PDF конвертации
+            $safeName = Str::slug($data['client_full_name'], '_');
+            if ($safeName === '') {
+                $safeName = 'contract';
+            }
+            $filename = $safeName.'_'.$data['contract_number'];
+            $docxRel = 'contracts/'.$filename.'.docx';
+            
+            // Быстро генерируем только DOCX
+            $this->generateDocxOnly($data, $docxRel);
+            
+            return response()->json(['contract_url' => Storage::url($docxRel)]);
         }
-        $filename = $safeName.'_'.$data['contract_number'];
-        
-        // Пока возвращаем DOCX, PDF будет готов позже
-        $docxRel = 'contracts/'.$filename.'.docx';
-        $contractUrl = Storage::url($docxRel);
-        
-        Log::info('Contract generation queued', [
-            'filename' => $filename,
-            'url' => $contractUrl
-        ]);
-        
-        return response()->json(['contract_url' => $contractUrl]);
+    }
+    
+    private function generateDocxOnly($data, $docxRel)
+    {
+        try {
+            // Генерируем DOCX из шаблона
+            $tpl = new TemplateProcessor(resource_path('contracts/contract.docx'));
+            
+            // Ограничиваем длину полей
+            foreach ($data as $k => $v) {
+                $cleanValue = trim(strip_tags($v));
+                
+                if ($k === 'client_full_name') {
+                    $cleanValue = Str::limit($cleanValue, 50);
+                } elseif ($k === 'client_address') {
+                    $cleanValue = Str::limit($cleanValue, 100);
+                } elseif ($k === 'bank_name') {
+                    $cleanValue = Str::limit($cleanValue, 80);
+                } elseif ($k === 'bank_account') {
+                    $cleanValue = Str::limit($cleanValue, 50);
+                } elseif ($k === 'bank_bik') {
+                    $cleanValue = Str::limit($cleanValue, 20);
+                } elseif ($k === 'bank_swift') {
+                    $cleanValue = Str::limit($cleanValue, 20);
+                } elseif ($k === 'inn') {
+                    $cleanValue = Str::limit($cleanValue, 20);
+                } elseif ($k === 'passport_full') {
+                    $cleanValue = Str::limit($cleanValue, 30);
+                }
+                
+                $tpl->setValue($k, $cleanValue);
+            }
+            
+            $tmpDocx = storage_path('app/'.$docxRel);
+            @mkdir(dirname($tmpDocx), 0775, true);
+            
+            // Сохраняем DOCX
+            $tpl->saveAs($tmpDocx);
+            Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
+            @unlink($tmpDocx);
+            
+            Log::info('DOCX generated synchronously', ['file' => $docxRel]);
+            
+        } catch (\Throwable $e) {
+            Log::error('Sync DOCX generation failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 }
