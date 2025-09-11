@@ -93,9 +93,6 @@ class ManychatContractController extends Controller
                 // Заменяем только точные совпадения плейсхолдеров
                 $tpl->setValue($k, $cleanValue);
             }
-            
-            // Принудительная замена статичной даты
-            $tpl->setValue('«21» июля 2024 г.', $data['contract_date']);
 
             $safeName = Str::slug($data['client_full_name'], '_');
             if ($safeName === '') {
