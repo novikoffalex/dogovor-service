@@ -121,6 +121,13 @@ class ManychatContractController extends Controller
             try {
                 $apiKey = '4bb76644955076ff4def01f10b50e2ad7c0e4b00';
                 
+                Log::info('Starting Zamzar conversion', [
+                    'api_key' => substr($apiKey, 0, 8) . '...',
+                    'docx_file' => $tmpDocx,
+                    'file_exists' => file_exists($tmpDocx),
+                    'file_size' => file_exists($tmpDocx) ? filesize($tmpDocx) : 0
+                ]);
+                
                 if (empty($apiKey) || $apiKey === 'your_zamzar_api_key') {
                     throw new \Exception('Zamzar API key not configured');
                 }
@@ -142,6 +149,11 @@ class ManychatContractController extends Controller
                 $response = curl_exec($ch);
                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 curl_close($ch);
+                
+                Log::info('Zamzar job creation response', [
+                    'http_code' => $httpCode,
+                    'response' => $response
+                ]);
                 
                 if ($httpCode !== 200) {
                     throw new \Exception('Failed to create Zamzar job: ' . $response);
