@@ -119,6 +119,11 @@ class ManychatContractController extends Controller
             
             // Конвертируем в PDF через CloudConvert
             try {
+                Log::info('Starting CloudConvert conversion', [
+                    'api_key_exists' => !empty(config('services.cloudconvert.api_key')),
+                    'api_key_length' => strlen(config('services.cloudconvert.api_key')),
+                ]);
+                
                 $cloudconvert = new CloudConvert([
                     'api_key' => config('services.cloudconvert.api_key'),
                 ]);
@@ -134,13 +139,16 @@ class ManychatContractController extends Controller
                     ]));
                 
                 $cloudconvert->jobs()->create($job);
+                Log::info('CloudConvert job created');
                 
                 // Загружаем файл
                 $uploadTask = $cloudconvert->tasks()->find('upload-my-file');
                 $cloudconvert->tasks()->upload($uploadTask, file_get_contents($tmpDocx));
+                Log::info('File uploaded to CloudConvert');
                 
                 // Ждем завершения конвертации
                 $cloudconvert->jobs()->wait($job);
+                Log::info('CloudConvert conversion completed');
                 
                 // Получаем результат
                 $exportTask = $cloudconvert->tasks()->find('export-my-file');
@@ -150,9 +158,15 @@ class ManychatContractController extends Controller
                 Storage::put($pdfRel, $result, ['visibility' => 'public']);
                 @unlink($tmpDocx);
                 
+                Log::info('PDF saved successfully');
                 return response()->json(['contract_url' => Storage::url($pdfRel)]);
                 
             } catch (\Exception $e) {
+                Log::error('CloudConvert conversion failed', [
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                
                 // Если конвертация не удалась, возвращаем DOCX
                 Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
                 @unlink($tmpDocx);
