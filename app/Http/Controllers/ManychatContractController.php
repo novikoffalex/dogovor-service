@@ -119,7 +119,7 @@ class ManychatContractController extends Controller
             
             // Конвертируем в PDF через Zamzar API (бесплатно)
             try {
-                $apiKey = 'your_zamzar_api_key'; // Нужно получить на zamzar.com
+                $apiKey = '4bb76644955076ff4def01f10b50e2ad7c0e4b00';
                 
                 if (empty($apiKey) || $apiKey === 'your_zamzar_api_key') {
                     throw new \Exception('Zamzar API key not configured');
