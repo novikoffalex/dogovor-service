@@ -155,7 +155,7 @@ class ManychatContractController extends Controller
                     'response' => $response
                 ]);
                 
-                if ($httpCode !== 200) {
+                if ($httpCode !== 200 && $httpCode !== 201) {
                     throw new \Exception('Failed to create Zamzar job: ' . $response);
                 }
                 
