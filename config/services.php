@@ -39,4 +39,8 @@ return [
         'token' => env('MANYCHAT_TOKEN'),
     ],
 
+    'cloudconvert' => [
+        'api_key' => env('CLOUDCONVERT_API_KEY'),
+    ],
+
 ];

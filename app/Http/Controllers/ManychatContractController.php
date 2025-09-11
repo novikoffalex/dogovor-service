@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use PhpOffice\PhpWord\TemplateProcessor;
+use CloudConvert\CloudConvert;
+use CloudConvert\Models\Job;
+use CloudConvert\Models\Task;
 
 class ManychatContractController extends Controller
 {
@@ -114,19 +117,42 @@ class ManychatContractController extends Controller
             // Сохраняем DOCX
             $tpl->saveAs($tmpDocx);
             
-            // Конвертируем в PDF через LibreOffice
-            $output = [];
-            $returnCode = 0;
-            exec("libreoffice --headless --convert-to pdf --outdir " . dirname($tmpPdf) . " " . $tmpDocx . " 2>&1", $output, $returnCode);
-            
-            if ($returnCode === 0 && file_exists($tmpPdf)) {
-                // Сохраняем PDF в хранилище
-                Storage::put($pdfRel, file_get_contents($tmpPdf), ['visibility' => 'public']);
-                // Удаляем временные файлы
+            // Конвертируем в PDF через CloudConvert
+            try {
+                $cloudconvert = new CloudConvert([
+                    'api_key' => config('services.cloudconvert.api_key'),
+                ]);
+                
+                $job = (new Job())
+                    ->addTask(new Task('import/upload', 'upload-my-file'))
+                    ->addTask(new Task('convert', 'convert-my-file', [
+                        'input' => 'upload-my-file',
+                        'output_format' => 'pdf'
+                    ]))
+                    ->addTask(new Task('export/url', 'export-my-file', [
+                        'input' => 'convert-my-file'
+                    ]));
+                
+                $cloudconvert->jobs()->create($job);
+                
+                // Загружаем файл
+                $uploadTask = $cloudconvert->tasks()->find('upload-my-file');
+                $cloudconvert->tasks()->upload($uploadTask, file_get_contents($tmpDocx));
+                
+                // Ждем завершения конвертации
+                $cloudconvert->jobs()->wait($job);
+                
+                // Получаем результат
+                $exportTask = $cloudconvert->tasks()->find('export-my-file');
+                $result = $cloudconvert->tasks()->download($exportTask);
+                
+                // Сохраняем PDF
+                Storage::put($pdfRel, $result, ['visibility' => 'public']);
                 @unlink($tmpDocx);
-                @unlink($tmpPdf);
+                
                 return response()->json(['contract_url' => Storage::url($pdfRel)]);
-            } else {
+                
+            } catch (\Exception $e) {
                 // Если конвертация не удалась, возвращаем DOCX
                 Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
                 @unlink($tmpDocx);
