@@ -79,6 +79,9 @@ class ManychatContractController extends Controller
         
         // Генерируем дату в нужном формате
         $data['contract_date'] = '«' . now()->format('d') . '» ' . now()->format('F Y') . ' г.';
+        
+        // Принудительно добавляем дату, если её нет в шаблоне
+        $data['contract_date_force'] = $data['contract_date'];
 
         try {
             // Генерируем DOCX из шаблона
@@ -90,6 +93,9 @@ class ManychatContractController extends Controller
                 // Заменяем только точные совпадения плейсхолдеров
                 $tpl->setValue($k, $cleanValue);
             }
+            
+            // Принудительная замена статичной даты
+            $tpl->setValue('«21» июля 2024 г.', $data['contract_date']);
 
             $safeName = Str::slug($data['client_full_name'], '_');
             if ($safeName === '') {
