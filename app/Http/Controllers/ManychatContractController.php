@@ -117,47 +117,11 @@ class ManychatContractController extends Controller
             // Сохраняем DOCX
             $tpl->saveAs($tmpDocx);
             
-            // Конвертируем в PDF через Pandoc
-            try {
-                Log::info('Starting Pandoc conversion');
-                
-                // Конвертируем DOCX в PDF через Pandoc
-                $output = [];
-                $returnCode = 0;
-                exec("pandoc '$tmpDocx' -o '$tmpPdf' 2>&1", $output, $returnCode);
-                
-                if ($returnCode === 0 && file_exists($tmpPdf)) {
-                    // Сохраняем PDF в хранилище
-                    Storage::put($pdfRel, file_get_contents($tmpPdf), ['visibility' => 'public']);
-                    // Удаляем временные файлы
-                    @unlink($tmpDocx);
-                    @unlink($tmpPdf);
-                    
-                    Log::info('PDF saved successfully via Pandoc');
-                    return response()->json(['contract_url' => Storage::url($pdfRel)]);
-                } else {
-                    Log::error('Pandoc conversion failed', [
-                        'return_code' => $returnCode,
-                        'output' => implode("\n", $output),
-                    ]);
-                    
-                    // Если конвертация не удалась, возвращаем DOCX
-                    Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
-                    @unlink($tmpDocx);
-                    return response()->json(['contract_url' => Storage::url($docxRel)]);
-                }
-                
-            } catch (\Exception $e) {
-                Log::error('Pandoc conversion failed', [
-                    'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                
-                // Если конвертация не удалась, возвращаем DOCX
-                Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
-                @unlink($tmpDocx);
-                return response()->json(['contract_url' => Storage::url($docxRel)]);
-            }
+            // Сохраняем DOCX файл
+            Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
+            @unlink($tmpDocx);
+            
+            return response()->json(['contract_url' => Storage::url($docxRel)]);
         } catch (\Throwable $e) {
             Log::error('Contract generation failed', [
                 'message' => $e->getMessage(),
