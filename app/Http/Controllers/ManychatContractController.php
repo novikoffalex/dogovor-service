@@ -133,7 +133,7 @@ class ManychatContractController extends Controller
                 curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
                 
                 $postData = [
-                    'source_file' => new CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'contract.docx'),
+                    'source_file' => new \CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'contract.docx'),
                     'target_format' => 'pdf'
                 ];
                 
