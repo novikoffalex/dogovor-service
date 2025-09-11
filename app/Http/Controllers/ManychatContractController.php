@@ -8,9 +8,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use PhpOffice\PhpWord\TemplateProcessor;
-use CloudConvert\CloudConvert;
-use CloudConvert\Models\Job;
-use CloudConvert\Models\Task;
+// use CloudConvert\CloudConvert;
+// use CloudConvert\Models\Job;
+// use CloudConvert\Models\Task;
 
 class ManychatContractController extends Controller
 {
@@ -117,52 +117,38 @@ class ManychatContractController extends Controller
             // Сохраняем DOCX
             $tpl->saveAs($tmpDocx);
             
-            // Конвертируем в PDF через CloudConvert
+            // Конвертируем в PDF через Pandoc
             try {
-                Log::info('Starting CloudConvert conversion', [
-                    'api_key_exists' => !empty(config('services.cloudconvert.api_key')),
-                    'api_key_length' => strlen(config('services.cloudconvert.api_key')),
-                ]);
+                Log::info('Starting Pandoc conversion');
                 
-                $cloudconvert = new CloudConvert([
-                    'api_key' => config('services.cloudconvert.api_key'),
-                ]);
+                // Конвертируем DOCX в PDF через Pandoc
+                $output = [];
+                $returnCode = 0;
+                exec("pandoc '$tmpDocx' -o '$tmpPdf' 2>&1", $output, $returnCode);
                 
-                $job = (new Job())
-                    ->addTask(new Task('import/upload', 'upload-my-file'))
-                    ->addTask(new Task('convert', 'convert-my-file', [
-                        'input' => 'upload-my-file',
-                        'output_format' => 'pdf'
-                    ]))
-                    ->addTask(new Task('export/url', 'export-my-file', [
-                        'input' => 'convert-my-file'
-                    ]));
-                
-                $cloudconvert->jobs()->create($job);
-                Log::info('CloudConvert job created');
-                
-                // Загружаем файл
-                $uploadTask = $cloudconvert->tasks()->find('upload-my-file');
-                $cloudconvert->tasks()->upload($uploadTask, file_get_contents($tmpDocx));
-                Log::info('File uploaded to CloudConvert');
-                
-                // Ждем завершения конвертации
-                $cloudconvert->jobs()->wait($job);
-                Log::info('CloudConvert conversion completed');
-                
-                // Получаем результат
-                $exportTask = $cloudconvert->tasks()->find('export-my-file');
-                $result = $cloudconvert->tasks()->download($exportTask);
-                
-                // Сохраняем PDF
-                Storage::put($pdfRel, $result, ['visibility' => 'public']);
-                @unlink($tmpDocx);
-                
-                Log::info('PDF saved successfully');
-                return response()->json(['contract_url' => Storage::url($pdfRel)]);
+                if ($returnCode === 0 && file_exists($tmpPdf)) {
+                    // Сохраняем PDF в хранилище
+                    Storage::put($pdfRel, file_get_contents($tmpPdf), ['visibility' => 'public']);
+                    // Удаляем временные файлы
+                    @unlink($tmpDocx);
+                    @unlink($tmpPdf);
+                    
+                    Log::info('PDF saved successfully via Pandoc');
+                    return response()->json(['contract_url' => Storage::url($pdfRel)]);
+                } else {
+                    Log::error('Pandoc conversion failed', [
+                        'return_code' => $returnCode,
+                        'output' => implode("\n", $output),
+                    ]);
+                    
+                    // Если конвертация не удалась, возвращаем DOCX
+                    Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
+                    @unlink($tmpDocx);
+                    return response()->json(['contract_url' => Storage::url($docxRel)]);
+                }
                 
             } catch (\Exception $e) {
-                Log::error('CloudConvert conversion failed', [
+                Log::error('Pandoc conversion failed', [
                     'message' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
