@@ -77,8 +77,13 @@ class ManychatContractController extends Controller
             $data['contract_number'] = $today.'-'.str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
         }
         
-        // Генерируем дату в нужном формате
-        $data['contract_date'] = '«' . now()->format('d') . '» ' . now()->format('F Y') . ' г.';
+        // Генерируем дату в нужном формате на русском языке
+        $months = [
+            1 => 'января', 2 => 'февраля', 3 => 'марта', 4 => 'апреля',
+            5 => 'мая', 6 => 'июня', 7 => 'июля', 8 => 'августа',
+            9 => 'сентября', 10 => 'октября', 11 => 'ноября', 12 => 'декабря'
+        ];
+        $data['contract_date'] = '«' . now()->format('d') . '» ' . $months[now()->month] . ' ' . now()->format('Y') . ' г.';
         
         // Принудительно добавляем дату, если её нет в шаблоне
         $data['contract_date_force'] = $data['contract_date'];
