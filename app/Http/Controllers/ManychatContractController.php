@@ -98,6 +98,26 @@ class ManychatContractController extends Controller
             foreach ($data as $k => $v) {
                 // Очищаем данные от лишних символов
                 $cleanValue = trim(strip_tags($v));
+                
+                // Ограничиваем длину полей чтобы не сломать форматирование
+                if ($k === 'client_full_name') {
+                    $cleanValue = Str::limit($cleanValue, 50);
+                } elseif ($k === 'client_address') {
+                    $cleanValue = Str::limit($cleanValue, 100);
+                } elseif ($k === 'bank_name') {
+                    $cleanValue = Str::limit($cleanValue, 80);
+                } elseif ($k === 'bank_account') {
+                    $cleanValue = Str::limit($cleanValue, 50);
+                } elseif ($k === 'bank_bik') {
+                    $cleanValue = Str::limit($cleanValue, 20);
+                } elseif ($k === 'bank_swift') {
+                    $cleanValue = Str::limit($cleanValue, 20);
+                } elseif ($k === 'inn') {
+                    $cleanValue = Str::limit($cleanValue, 20);
+                } elseif ($k === 'passport_full') {
+                    $cleanValue = Str::limit($cleanValue, 30);
+                }
+                
                 // Заменяем только точные совпадения плейсхолдеров
                 $tpl->setValue($k, $cleanValue);
             }
