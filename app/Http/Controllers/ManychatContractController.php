@@ -183,7 +183,7 @@ class ManychatContractController extends Controller
                 $jobId = $job['id'];
                 
                 // Ждем завершения конвертации
-                $maxWaitTime = 60; // 60 секунд
+                $maxWaitTime = 15; // 15 секунд для ManyChat
                 $waitTime = 0;
                 
                 while ($waitTime < $maxWaitTime) {
