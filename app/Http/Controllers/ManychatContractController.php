@@ -103,16 +103,35 @@ class ManychatContractController extends Controller
             if ($safeName === '') {
                 $safeName = 'contract';
             }
-            $filename = $safeName.'_'.$data['contract_number'].'.docx';
-            $rel = 'contracts/'.$filename;
-            $tmp = storage_path('app/'.$rel);
-            @mkdir(dirname($tmp), 0775, true);
-            $tpl->saveAs($tmp);
-
-            // Сохраняем DOCX в хранилище
-            Storage::put($rel, file_get_contents($tmp), ['visibility' => 'public']);
+            $filename = $safeName.'_'.$data['contract_number'];
+            $docxRel = 'contracts/'.$filename.'.docx';
+            $pdfRel = 'contracts/'.$filename.'.pdf';
             
-            return response()->json(['contract_url' => Storage::url($rel)]);
+            $tmpDocx = storage_path('app/'.$docxRel);
+            $tmpPdf = storage_path('app/'.$pdfRel);
+            @mkdir(dirname($tmpDocx), 0775, true);
+            
+            // Сохраняем DOCX
+            $tpl->saveAs($tmpDocx);
+            
+            // Конвертируем в PDF через LibreOffice
+            $output = [];
+            $returnCode = 0;
+            exec("libreoffice --headless --convert-to pdf --outdir " . dirname($tmpPdf) . " " . $tmpDocx . " 2>&1", $output, $returnCode);
+            
+            if ($returnCode === 0 && file_exists($tmpPdf)) {
+                // Сохраняем PDF в хранилище
+                Storage::put($pdfRel, file_get_contents($tmpPdf), ['visibility' => 'public']);
+                // Удаляем временные файлы
+                @unlink($tmpDocx);
+                @unlink($tmpPdf);
+                return response()->json(['contract_url' => Storage::url($pdfRel)]);
+            } else {
+                // Если конвертация не удалась, возвращаем DOCX
+                Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
+                @unlink($tmpDocx);
+                return response()->json(['contract_url' => Storage::url($docxRel)]);
+            }
         } catch (\Throwable $e) {
             Log::error('Contract generation failed', [
                 'message' => $e->getMessage(),
