@@ -80,66 +80,49 @@ class ManychatContractController extends Controller
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
         
-        // ВРЕМЕННО: Отключаем фоновую PDF конвертацию
-        // if (!$request->has('format') || $request->get('format') !== 'pdf') {
-        //     try {
-        //         GenerateContractJob::dispatch($data);
-        //         Log::info('PDF conversion queued for background', ['filename' => $filename]);
-        //     } catch (\Exception $e) {
-        //         Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
-        //     }
-        // }
+        // Отправляем задачу в очередь для PDF конвертации (только для обычных DOCX запросов)
+        if (!$request->has('format') || $request->get('format') !== 'pdf') {
+            try {
+                GenerateContractJob::dispatch($data);
+                Log::info('PDF conversion queued for background', ['filename' => $filename]);
+            } catch (\Exception $e) {
+                Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
+            }
+        }
         
         // Проверяем, нужен ли PDF
         if ($request->has('format') && $request->get('format') === 'pdf') {
             // Проверяем, есть ли уже готовый PDF
-            if (Storage::disk('public')->exists($pdfRel)) {
-                Log::info('PDF already exists', [
+            if (Storage::disk('s3')->exists($pdfRel)) {
+                Log::info('PDF already exists in S3', [
+                    'filename' => $filename,
+                    'pdf_url' => Storage::disk('s3')->url($pdfRel)
+                ]);
+                return response()->json(['contract_url' => Storage::disk('s3')->url($pdfRel)]);
+            } elseif (Storage::disk('public')->exists($pdfRel)) {
+                Log::info('PDF already exists in public disk', [
                     'filename' => $filename,
                     'pdf_url' => Storage::url($pdfRel)
                 ]);
                 return response()->json(['contract_url' => Storage::url($pdfRel)]);
             }
             
-            // ВРЕМЕННО: Синхронная PDF конвертация с задержкой
+            // Отправляем задачу в управляемую очередь Laravel Cloud
             try {
-                Log::info('Starting synchronous PDF conversion', [
-                    'filename' => $filename,
-                    'docx_path' => $docxRel,
-                    'pdf_path' => $pdfRel
+                GenerateContractJob::dispatch($data)
+                    ->onQueue('pdf-conversion')
+                    ->delay(now()->addSeconds(2)); // Небольшая задержка для стабильности
+                
+                Log::info('PDF conversion queued for managed queue processing', ['filename' => $filename]);
+                
+                // Возвращаем DOCX немедленно, PDF будет готов позже
+                return response()->json([
+                    'contract_url' => Storage::url($docxRel),
+                    'pdf_url' => Storage::disk('s3')->url($pdfRel), // Будущий URL для PDF
+                    'message' => 'PDF conversion started in background. DOCX available now.'
                 ]);
-                
-                // Небольшая задержка для стабильности
-                sleep(2);
-                
-                // Конвертируем в PDF
-                $this->convertToPdf($docxRel, $pdfRel);
-                
-                // Проверяем, что PDF действительно создался
-                if (Storage::disk('s3')->exists($pdfRel)) {
-                    Log::info('PDF conversion completed successfully', [
-                        'filename' => $filename,
-                        'pdf_url' => Storage::disk('s3')->url($pdfRel),
-                        'file_size' => Storage::disk('s3')->size($pdfRel)
-                    ]);
-                    return response()->json(['contract_url' => Storage::disk('s3')->url($pdfRel)]);
-                } elseif (Storage::disk('public')->exists($pdfRel)) {
-                    Log::info('PDF conversion completed successfully (public disk)', [
-                        'filename' => $filename,
-                        'pdf_url' => Storage::url($pdfRel),
-                        'file_size' => Storage::disk('public')->size($pdfRel)
-                    ]);
-                    return response()->json(['contract_url' => Storage::url($pdfRel)]);
-                } else {
-                    Log::error('PDF file not found after conversion', ['pdf_path' => $pdfRel]);
-                    return response()->json(['contract_url' => Storage::url($docxRel)]);
-                }
             } catch (\Exception $e) {
-                Log::error('Synchronous PDF conversion failed', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                // Fallback к DOCX
+                Log::error('PDF conversion queue failed', ['error' => $e->getMessage()]);
                 return response()->json(['contract_url' => Storage::url($docxRel)]);
             }
         }
