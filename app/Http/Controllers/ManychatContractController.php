@@ -103,7 +103,11 @@ class ManychatContractController extends Controller
             
             // ВРЕМЕННО: Синхронная PDF конвертация с задержкой
             try {
-                Log::info('Starting synchronous PDF conversion', ['filename' => $filename]);
+                Log::info('Starting synchronous PDF conversion', [
+                    'filename' => $filename,
+                    'docx_path' => $docxRel,
+                    'pdf_path' => $pdfRel
+                ]);
                 
                 // Небольшая задержка для стабильности
                 sleep(2);
@@ -111,14 +115,23 @@ class ManychatContractController extends Controller
                 // Конвертируем в PDF
                 $this->convertToPdf($docxRel, $pdfRel);
                 
-                Log::info('PDF conversion completed synchronously', [
-                    'filename' => $filename,
-                    'pdf_url' => Storage::url($pdfRel)
-                ]);
-                
-                return response()->json(['contract_url' => Storage::url($pdfRel)]);
+                // Проверяем, что PDF действительно создался
+                if (Storage::disk('public')->exists($pdfRel)) {
+                    Log::info('PDF conversion completed successfully', [
+                        'filename' => $filename,
+                        'pdf_url' => Storage::url($pdfRel),
+                        'file_size' => Storage::disk('public')->size($pdfRel)
+                    ]);
+                    return response()->json(['contract_url' => Storage::url($pdfRel)]);
+                } else {
+                    Log::error('PDF file not found after conversion', ['pdf_path' => $pdfRel]);
+                    return response()->json(['contract_url' => Storage::url($docxRel)]);
+                }
             } catch (\Exception $e) {
-                Log::error('Synchronous PDF conversion failed', ['error' => $e->getMessage()]);
+                Log::error('Synchronous PDF conversion failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
                 // Fallback к DOCX
                 return response()->json(['contract_url' => Storage::url($docxRel)]);
             }
@@ -336,6 +349,7 @@ class ManychatContractController extends Controller
             return response()->json(['contract_url' => Storage::url($docxRel)]);
         }
     }
+
     
     public function testPdf()
     {
