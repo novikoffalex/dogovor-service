@@ -152,7 +152,7 @@ class ManychatContractController extends Controller
 
     public function generatePdfSimple(Request $request)
     {
-        Log::info('Simple PDF request received', [
+        Log::info('PDF request received', [
             'headers' => $request->headers->all(),
             'body' => $request->all()
         ]);
@@ -246,32 +246,121 @@ class ManychatContractController extends Controller
             $tmpDocx = storage_path('app/temp_'.$filename.'.docx');
             $tpl->saveAs($tmpDocx);
             
-            // Пробуем конвертировать в PDF через Pandoc
+            // Конвертируем в PDF через CloudConvert API
             $pdfPath = storage_path('app/temp_'.$filename.'.pdf');
-            $command = "pandoc '$tmpDocx' -o '$pdfPath' 2>&1";
-            $output = shell_exec($command);
             
-            Log::info('Pandoc conversion attempt', [
-                'command' => $command,
-                'output' => $output,
-                'pdf_exists' => file_exists($pdfPath)
+            $cloudConvertApiKey = config('services.cloudconvert.api_key');
+            if (!$cloudConvertApiKey) {
+                throw new \Exception('CloudConvert API key not configured');
+            }
+            
+            // Создаем задачу конвертации
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'https://api.cloudconvert.com/v2/jobs');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $cloudConvertApiKey,
+                'Content-Type: application/json'
             ]);
             
-            if (file_exists($pdfPath)) {
-                // Удаляем временный DOCX
-                @unlink($tmpDocx);
-                
-                return response()->download($pdfPath, $filename.'.pdf', [
-                    'Content-Type' => 'application/pdf'
-                ])->deleteFileAfterSend(true);
-            } else {
-                // Если Pandoc не работает, возвращаем DOCX
-                Log::warning('Pandoc failed, returning DOCX', ['output' => $output]);
-                return response()->download($tmpDocx, $filename.'.docx', [
-                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                ])->deleteFileAfterSend(true);
+            $jobData = [
+                'tasks' => [
+                    [
+                        'name' => 'convert-docx',
+                        'operation' => 'convert',
+                        'input_format' => 'docx',
+                        'output_format' => 'pdf',
+                        'input' => 'upload'
+                    ]
+                ]
+            ];
+            
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($jobData));
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            
+            if ($httpCode !== 200) {
+                throw new \Exception('CloudConvert job creation failed: ' . $response);
             }
-
+            
+            $job = json_decode($response, true);
+            $jobId = $job['data']['id'];
+            
+            Log::info('CloudConvert job created', ['job_id' => $jobId]);
+            
+            // Загружаем файл
+            $uploadUrl = $job['data']['tasks'][0]['result']['form']['url'];
+            $uploadFields = $job['data']['tasks'][0]['result']['form']['parameters'];
+            
+            $postFields = $uploadFields;
+            $postFields['file'] = new \CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', $filename.'.docx');
+            
+            curl_setopt($ch, CURLOPT_URL, $uploadUrl);
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, []);
+            
+            $uploadResponse = curl_exec($ch);
+            $uploadCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            
+            if ($uploadCode !== 200 && $uploadCode !== 204) {
+                throw new \Exception('File upload failed: ' . $uploadResponse);
+            }
+            
+            Log::info('File uploaded to CloudConvert');
+            
+            // Ждем завершения конвертации
+            $maxWaitTime = 60; // 60 секунд максимум
+            $waitTime = 0;
+            
+            while ($waitTime < $maxWaitTime) {
+                sleep(2);
+                $waitTime += 2;
+                
+                curl_setopt($ch, CURLOPT_URL, 'https://api.cloudconvert.com/v2/jobs/' . $jobId);
+                curl_setopt($ch, CURLOPT_POST, 0);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Authorization: Bearer ' . $cloudConvertApiKey,
+                    'Content-Type: application/json'
+                ]);
+                
+                $statusResponse = curl_exec($ch);
+                $status = json_decode($statusResponse, true);
+                
+                if ($status['data']['status'] === 'finished') {
+                    // Скачиваем готовый PDF
+                    $downloadUrl = $status['data']['tasks'][0]['result']['files'][0]['url'];
+                    
+                    curl_setopt($ch, CURLOPT_URL, $downloadUrl);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, []);
+                    curl_setopt($ch, CURLOPT_POST, 0);
+                    
+                    $pdfContent = curl_exec($ch);
+                    file_put_contents($pdfPath, $pdfContent);
+                    
+                    curl_close($ch);
+                    
+                    if (file_exists($pdfPath)) {
+                        @unlink($tmpDocx);
+                        
+                        Log::info('PDF generated successfully via CloudConvert', [
+                            'filename' => $filename,
+                            'size' => filesize($pdfPath)
+                        ]);
+                        
+                        return response()->download($pdfPath, $filename.'.pdf', [
+                            'Content-Type' => 'application/pdf'
+                        ])->deleteFileAfterSend(true);
+                    }
+                } elseif ($status['data']['status'] === 'error') {
+                    throw new \Exception('CloudConvert conversion failed: ' . json_encode($status));
+                }
+            }
+            
+            curl_close($ch);
+            throw new \Exception('CloudConvert conversion timeout');
+            
         } catch (\Exception $e) {
             Log::error('PDF generation failed', [
                 'error' => $e->getMessage(),

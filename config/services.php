@@ -43,4 +43,8 @@ return [
         'api_key' => env('CLOUDCONVERT_API_KEY'),
     ],
 
+    'cloudconvert' => [
+        'api_key' => env('CLOUDCONVERT_API_KEY'),
+    ],
+
 ];
