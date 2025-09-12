@@ -110,8 +110,7 @@ class ManychatContractController extends Controller
             @mkdir(dirname($tmpDocx), 0775, true);
             $tpl->saveAs($tmpDocx);
             
-            // Запускаем PDF конвертацию в фоне
-            GenerateContractJob::dispatch($data, $docxRel, $filename)->onQueue('pdf-conversion');
+            // PDF конвертация будет через webhook
             
             Log::info('Contract generated successfully', [
                 'filename' => $filename,
