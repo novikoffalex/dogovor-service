@@ -219,9 +219,10 @@ class ManychatContractController extends Controller
         if ($httpCode === 200 || $httpCode === 201) {
             $job = json_decode($response, true);
             $jobId = $job['id'];
+            Log::info('Zamzar job created', ['job_id' => $jobId, 'response' => $response]);
             
-            // Ждем завершения конвертации (до 180 секунд)
-            $maxWaitTime = 8;
+            // Ждем завершения конвертации (до 60 секунд)
+            $maxWaitTime = 60;
             $waitTime = 0;
             
             while ($waitTime < $maxWaitTime) {
@@ -239,6 +240,7 @@ class ManychatContractController extends Controller
                 $status = json_decode($statusResponse, true);
                 
                 if ($status['status'] === 'successful') {
+                    Log::info('Zamzar conversion successful', ['job_id' => $jobId, 'status' => $status]);
                     // Получаем результат
                     $fileId = $status['target_files'][0]['id'];
                     
@@ -253,8 +255,15 @@ class ManychatContractController extends Controller
                     if ($pdfContent) {
                         // Сохраняем PDF
                         Storage::disk('public')->put($pdfRel, $pdfContent);
+                        Log::info('PDF saved successfully', [
+                            'pdf_path' => $pdfRel,
+                            'file_size' => strlen($pdfContent),
+                            'pdf_url' => Storage::url($pdfRel)
+                        ]);
                         @unlink($tmpDocx); // Удаляем временный DOCX
                         return;
+                    } else {
+                        Log::error('PDF content is empty', ['file_id' => $fileId]);
                     }
                 }
                 
