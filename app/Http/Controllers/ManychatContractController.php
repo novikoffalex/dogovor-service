@@ -110,11 +110,6 @@ class ManychatContractController extends Controller
             @mkdir(dirname($tmpDocx), 0775, true);
             $tpl->saveAs($tmpDocx);
             
-            // Копируем в public storage для доступа по URL
-            $publicDocxPath = storage_path('app/public/'.$docxRel);
-            @mkdir(dirname($publicDocxPath), 0775, true);
-            copy($tmpDocx, $publicDocxPath);
-            
             // Запускаем PDF конвертацию в фоне
             GenerateContractJob::dispatch($data, $docxRel, $filename)->onQueue('pdf-conversion');
             
@@ -123,22 +118,10 @@ class ManychatContractController extends Controller
                 'temp_path' => $tmpDocx
             ]);
             
-            // Проверяем, есть ли уже PDF файл
-            $pdfRel = 'contracts/'.$filename.'.pdf';
-            $publicPdfPath = storage_path('app/public/'.$pdfRel);
-            $pdfUrl = null;
-            
-            if (file_exists($publicPdfPath)) {
-                $pdfUrl = Storage::url($pdfRel);
-                Log::info('PDF already exists', ['pdf_url' => $pdfUrl]);
-            }
-            
-            // Возвращаем JSON с URL файла и PDF (если есть)
-            return response()->json([
-                'contract_url' => Storage::url($docxRel),
-                'pdf_url' => $pdfUrl,
-                'message' => $pdfUrl ? 'Contract and PDF ready' : 'Contract ready, PDF generating in background'
-            ]);
+            // Возвращаем файл напрямую в ответе
+            return response()->download($tmpDocx, $filename.'.docx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ])->deleteFileAfterSend(true);
             
         } catch (\Exception $e) {
             Log::error('Contract generation failed', [
@@ -153,6 +136,19 @@ class ManychatContractController extends Controller
         }
     }
 
+
+    public function getPdf($filename)
+    {
+        $pdfPath = storage_path('app/public/contracts/' . $filename . '.pdf');
+        
+        if (file_exists($pdfPath)) {
+            return response()->download($pdfPath, $filename . '.pdf', [
+                'Content-Type' => 'application/pdf'
+            ]);
+        }
+        
+        return response()->json(['error' => 'PDF not found'], 404);
+    }
 
     public function testPdf()
     {
