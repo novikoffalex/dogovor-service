@@ -80,23 +80,6 @@ class ManychatContractController extends Controller
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
         
-        // Проверяем, есть ли уже PDF
-        if (Storage::disk('public')->exists($pdfRel)) {
-            Log::info('Contract generated with existing PDF', [
-                'filename' => $filename,
-                'pdf_url' => Storage::url($pdfRel)
-            ]);
-            return response()->json(['contract_url' => Storage::url($pdfRel)]);
-        }
-        
-        // Отправляем задачу в очередь для PDF конвертации
-        try {
-            GenerateContractJob::dispatch($data);
-            Log::info('PDF conversion queued', ['filename' => $filename]);
-        } catch (\Exception $e) {
-            Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
-        }
-        
         Log::info('Contract generated DOCX', [
             'filename' => $filename,
             'docx_url' => Storage::url($docxRel)
