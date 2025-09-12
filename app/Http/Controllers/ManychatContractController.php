@@ -182,7 +182,13 @@ class ManychatContractController extends Controller
             // Сохраняем DOCX
             $tpl->saveAs($outputPath);
             
-            Log::info('DOCX generated synchronously', ['file' => $docxRel]);
+            // Устанавливаем публичные права для DOCX
+            Storage::disk('public')->setVisibility($docxRel, 'public');
+            
+            Log::info('DOCX generated synchronously', [
+                'file' => $docxRel,
+                'visibility' => Storage::disk('public')->getVisibility($docxRel)
+            ]);
             
         } catch (\Throwable $e) {
             Log::error('Sync DOCX generation failed', [
@@ -253,12 +259,17 @@ class ManychatContractController extends Controller
                     curl_close($ch);
                     
                     if ($pdfContent) {
-                        // Сохраняем PDF
-                        Storage::disk('public')->put($pdfRel, $pdfContent);
+                        // Сохраняем PDF с правильными правами
+                        Storage::disk('public')->put($pdfRel, $pdfContent, 'public');
+                        
+                        // Устанавливаем публичные права для файла
+                        Storage::disk('public')->setVisibility($pdfRel, 'public');
+                        
                         Log::info('PDF saved successfully', [
                             'pdf_path' => $pdfRel,
                             'file_size' => strlen($pdfContent),
-                            'pdf_url' => Storage::url($pdfRel)
+                            'pdf_url' => Storage::url($pdfRel),
+                            'visibility' => Storage::disk('public')->getVisibility($pdfRel)
                         ]);
                         @unlink($tmpDocx); // Удаляем временный DOCX
                         return;
