@@ -68,44 +68,31 @@ class ManychatContractController extends Controller
         ];
         $data['contract_date'] = '«' . now()->format('d') . '» ' . $months[now()->month] . ' ' . now()->format('Y') . ' г.';
 
-        // Пытаемся отправить в очередь, если не получается - обрабатываем синхронно
+        // Генерируем DOCX синхронно для надежности
+        $safeName = Str::slug($data['client_full_name'], '_');
+        if ($safeName === '') {
+            $safeName = 'contract';
+        }
+        $filename = $safeName.'_'.$data['contract_number'];
+        $docxRel = 'contracts/'.$filename.'.docx';
+        
+        // Генерируем DOCX
+        $this->generateDocxOnly($data, $docxRel);
+        
+        // Отправляем задачу в очередь для PDF конвертации (если нужно)
         try {
             GenerateContractJob::dispatch($data);
-            
-            // Быстро отвечаем ManyChat
-            $safeName = Str::slug($data['client_full_name'], '_');
-            if ($safeName === '') {
-                $safeName = 'contract';
-            }
-            $filename = $safeName.'_'.$data['contract_number'];
-            
-            // Пока возвращаем DOCX, PDF будет готов позже
-            $docxRel = 'contracts/'.$filename.'.docx';
-            $contractUrl = Storage::url($docxRel);
-            
-            Log::info('Contract generation queued', [
-                'filename' => $filename,
-                'url' => $contractUrl
-            ]);
-            
-            return response()->json(['contract_url' => $contractUrl]);
-            
+            Log::info('PDF conversion queued', ['filename' => $filename]);
         } catch (\Exception $e) {
-            Log::warning('Queue failed, falling back to sync processing', ['error' => $e->getMessage()]);
-            
-            // Fallback: быстрая генерация DOCX без PDF конвертации
-            $safeName = Str::slug($data['client_full_name'], '_');
-            if ($safeName === '') {
-                $safeName = 'contract';
-            }
-            $filename = $safeName.'_'.$data['contract_number'];
-            $docxRel = 'contracts/'.$filename.'.docx';
-            
-            // Быстро генерируем только DOCX
-            $this->generateDocxOnly($data, $docxRel);
-            
-            return response()->json(['contract_url' => Storage::url($docxRel)]);
+            Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
         }
+        
+        Log::info('Contract generated', [
+            'filename' => $filename,
+            'url' => Storage::url($docxRel)
+        ]);
+        
+        return response()->json(['contract_url' => Storage::url($docxRel)]);
     }
     
     private function generateDocxOnly($data, $docxRel)
@@ -144,7 +131,7 @@ class ManychatContractController extends Controller
             
             // Сохраняем DOCX
             $tpl->saveAs($tmpDocx);
-            Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);
+            Storage::disk('public')->put($docxRel, file_get_contents($tmpDocx));
             @unlink($tmpDocx);
             
             Log::info('DOCX generated synchronously', ['file' => $docxRel]);
