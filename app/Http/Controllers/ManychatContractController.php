@@ -118,118 +118,84 @@ class ManychatContractController extends Controller
                 'temp_path' => $tmpDocx
             ]);
             
-            // Пробуем конвертировать в PDF через CloudConvert
+            // Пробуем конвертировать в PDF через Zamzar
             try {
-                $cloudConvertApiKey = config('services.cloudconvert.api_key');
-                if ($cloudConvertApiKey) {
+                $zamzarApiKey = config('services.zamzar.api_key');
+                if ($zamzarApiKey) {
                     $pdfPath = storage_path('app/temp_'.$filename.'.pdf');
                     
-                    // Создаем задачу конвертации
+                    // Создаем задачу конвертации в Zamzar
                     $ch = curl_init();
-                    curl_setopt($ch, CURLOPT_URL, 'https://sync.api.cloudconvert.com/v2/jobs');
+                    curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
                     curl_setopt($ch, CURLOPT_POST, 1);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                        'Authorization: Bearer ' . $cloudConvertApiKey,
-                        'Content-Type: application/json'
-                    ]);
+                    curl_setopt($ch, CURLOPT_USERPWD, $zamzarApiKey . ':');
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+                        'source_file' => $tmpDocx,
+                        'target_format' => 'pdf'
+                    ]));
                     
-                    $jobData = [
-                        'tasks' => [
-                            [
-                                'name' => 'convert-docx',
-                                'operation' => 'convert',
-                                'input_format' => 'docx',
-                                'output_format' => 'pdf',
-                                'input' => 'upload'
-                            ]
-                        ]
-                    ];
-                    
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($jobData));
                     $response = curl_exec($ch);
                     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                     
                     if ($httpCode === 200) {
                         $job = json_decode($response, true);
-                        $jobId = $job['data']['id'];
+                        $jobId = $job['id'];
                         
-                        Log::info('CloudConvert job created', ['job_id' => $jobId]);
+                        Log::info('Zamzar job created', ['job_id' => $jobId]);
                         
-                        // Загружаем файл
-                        $uploadUrl = $job['data']['tasks'][0]['result']['form']['url'];
-                        $uploadFields = $job['data']['tasks'][0]['result']['form']['parameters'];
+                        // Ждем завершения конвертации (максимум 60 секунд)
+                        $maxWaitTime = 60;
+                        $waitTime = 0;
                         
-                        $postFields = $uploadFields;
-                        $postFields['file'] = new \CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', $filename.'.docx');
-                        
-                        curl_setopt($ch, CURLOPT_URL, $uploadUrl);
-                        curl_setopt($ch, CURLOPT_POST, 1);
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, []);
-                        
-                        $uploadResponse = curl_exec($ch);
-                        $uploadCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        
-                        if ($uploadCode === 200 || $uploadCode === 204) {
-                            Log::info('File uploaded to CloudConvert');
+                        while ($waitTime < $maxWaitTime) {
+                            sleep(3);
+                            $waitTime += 3;
                             
-                            // Ждем завершения конвертации (максимум 30 секунд)
-                            $maxWaitTime = 30;
-                            $waitTime = 0;
+                            curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs/' . $jobId);
+                            curl_setopt($ch, CURLOPT_POST, 0);
                             
-                            while ($waitTime < $maxWaitTime) {
-                                sleep(2);
-                                $waitTime += 2;
+                            $statusResponse = curl_exec($ch);
+                            $status = json_decode($statusResponse, true);
+                            
+                            if ($status['status'] === 'successful') {
+                                // Скачиваем готовый PDF
+                                $fileId = $status['target_files'][0];
                                 
-                                curl_setopt($ch, CURLOPT_URL, 'https://api.cloudconvert.com/v2/jobs/' . $jobId);
+                                curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/files/' . $fileId . '/content');
                                 curl_setopt($ch, CURLOPT_POST, 0);
-                                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                    'Authorization: Bearer ' . $cloudConvertApiKey,
-                                    'Content-Type: application/json'
-                                ]);
                                 
-                                $statusResponse = curl_exec($ch);
-                                $status = json_decode($statusResponse, true);
+                                $pdfContent = curl_exec($ch);
+                                file_put_contents($pdfPath, $pdfContent);
                                 
-                                if ($status['data']['status'] === 'finished') {
-                                    // Скачиваем готовый PDF
-                                    $downloadUrl = $status['data']['tasks'][0]['result']['files'][0]['url'];
+                                curl_close($ch);
+                                
+                                if (file_exists($pdfPath)) {
+                                    @unlink($tmpDocx);
                                     
-                                    curl_setopt($ch, CURLOPT_URL, $downloadUrl);
-                                    curl_setopt($ch, CURLOPT_HTTPHEADER, []);
-                                    curl_setopt($ch, CURLOPT_POST, 0);
+                                    Log::info('PDF generated successfully via Zamzar', [
+                                        'filename' => $filename,
+                                        'size' => filesize($pdfPath)
+                                    ]);
                                     
-                                    $pdfContent = curl_exec($ch);
-                                    file_put_contents($pdfPath, $pdfContent);
-                                    
-                                    curl_close($ch);
-                                    
-                                    if (file_exists($pdfPath)) {
-                                        @unlink($tmpDocx);
-                                        
-                                        Log::info('PDF generated successfully via CloudConvert', [
-                                            'filename' => $filename,
-                                            'size' => filesize($pdfPath)
-                                        ]);
-                                        
-                                        return response()->download($pdfPath, $filename.'.pdf', [
-                                            'Content-Type' => 'application/pdf'
-                                        ])->deleteFileAfterSend(true);
-                                    }
-                                } elseif ($status['data']['status'] === 'error') {
-                                    Log::error('CloudConvert conversion failed', ['status' => $status]);
-                                    break;
+                                    return response()->download($pdfPath, $filename.'.pdf', [
+                                        'Content-Type' => 'application/pdf'
+                                    ])->deleteFileAfterSend(true);
                                 }
+                            } elseif ($status['status'] === 'failed') {
+                                Log::error('Zamzar conversion failed', ['status' => $status]);
+                                break;
                             }
-                            
-                            curl_close($ch);
-                            Log::warning('CloudConvert conversion timeout, returning DOCX');
                         }
+                        
+                        curl_close($ch);
+                        Log::warning('Zamzar conversion timeout, returning DOCX');
+                    } else {
+                        Log::error('Zamzar job creation failed', ['response' => $response]);
                     }
                 }
             } catch (\Exception $e) {
-                Log::error('CloudConvert PDF conversion failed', [
+                Log::error('Zamzar PDF conversion failed', [
                     'error' => $e->getMessage()
                 ]);
             }

@@ -43,8 +43,8 @@ return [
         'api_key' => env('CLOUDCONVERT_API_KEY'),
     ],
 
-    'cloudconvert' => [
-        'api_key' => env('CLOUDCONVERT_API_KEY'),
+    'zamzar' => [
+        'api_key' => env('ZAMZAR_API_KEY'),
     ],
 
 ];
