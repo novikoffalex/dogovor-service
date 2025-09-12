@@ -118,32 +118,30 @@ class ManychatContractController extends Controller
                 'temp_path' => $tmpDocx
             ]);
             
-            // Пробуем конвертировать в PDF через Zamzar
+            // Запускаем конвертацию в PDF через Zamzar с webhook
             try {
                 $zamzarApiKey = config('services.zamzar.api_key');
                 if ($zamzarApiKey) {
-                    $pdfPath = storage_path('app/temp_'.$filename.'.pdf');
-                    
-                    // Используем простой HTTP API для Zamzar
-                    $postData = [
-                        'source_file' => '@' . $tmpDocx,
-                        'target_format' => 'pdf'
-                    ];
-                    
+                    // Создаем задачу конвертации в Zamzar с webhook
                     $ch = curl_init();
                     curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
                     curl_setopt($ch, CURLOPT_POST, 1);
                     curl_setopt($ch, CURLOPT_USERPWD, $zamzarApiKey . ':');
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                        'Content-Type: multipart/form-data'
-                    ]);
+                    
+                    // Загружаем файл через multipart/form-data + webhook URL
+                    $postFields = [
+                        'source_file' => new \CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', $filename.'.docx'),
+                        'target_format' => 'pdf',
+                        'webhook_url' => 'https://dogovor-service-main-srtt1t.laravel.cloud/api/zamzar/webhook'
+                    ];
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
                     
                     $response = curl_exec($ch);
                     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
                     
-                    Log::info('Zamzar API response', [
+                    Log::info('Zamzar API response with webhook', [
                         'http_code' => $httpCode,
                         'response' => $response
                     ]);
@@ -152,56 +150,13 @@ class ManychatContractController extends Controller
                         $job = json_decode($response, true);
                         $jobId = $job['id'];
                         
-                        Log::info('Zamzar job created', ['job_id' => $jobId]);
+                        // Сохраняем mapping job_id -> filename для webhook
+                        Cache::put("zamzar_job_{$jobId}", $filename, 3600); // 1 час
                         
-                        // Ждем завершения конвертации (максимум 60 секунд)
-                        $maxWaitTime = 60;
-                        $waitTime = 0;
-                        
-                        while ($waitTime < $maxWaitTime) {
-                            sleep(3);
-                            $waitTime += 3;
-                            
-                            curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs/' . $jobId);
-                            curl_setopt($ch, CURLOPT_POST, 0);
-                            
-                            $statusResponse = curl_exec($ch);
-                            $status = json_decode($statusResponse, true);
-                            
-                            Log::info('Zamzar job status', ['status' => $status]);
-                            
-                            if ($status['status'] === 'successful') {
-                                // Скачиваем готовый PDF
-                                $fileId = $status['target_files'][0];
-                                
-                                curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/files/' . $fileId . '/content');
-                                curl_setopt($ch, CURLOPT_POST, 0);
-                                
-                                $pdfContent = curl_exec($ch);
-                                file_put_contents($pdfPath, $pdfContent);
-                                
-                                curl_close($ch);
-                                
-                                if (file_exists($pdfPath)) {
-                                    @unlink($tmpDocx);
-                                    
-                                    Log::info('PDF generated successfully via Zamzar', [
-                                        'filename' => $filename,
-                                        'size' => filesize($pdfPath)
-                                    ]);
-                                    
-                                    return response()->download($pdfPath, $filename.'.pdf', [
-                                        'Content-Type' => 'application/pdf'
-                                    ])->deleteFileAfterSend(true);
-                                }
-                            } elseif ($status['status'] === 'failed') {
-                                Log::error('Zamzar conversion failed', ['status' => $status]);
-                                break;
-                            }
-                        }
-                        
-                        curl_close($ch);
-                        Log::warning('Zamzar conversion timeout, returning DOCX');
+                        Log::info('Zamzar job created with webhook', [
+                            'job_id' => $jobId,
+                            'filename' => $filename
+                        ]);
                     } else {
                         Log::error('Zamzar job creation failed', ['response' => $response]);
                     }
@@ -212,10 +167,23 @@ class ManychatContractController extends Controller
                 ]);
             }
             
-            // Если PDF конвертация не удалась, возвращаем DOCX
-            return response()->download($tmpDocx, $filename.'.docx', [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            ])->deleteFileAfterSend(true);
+            // Возвращаем JSON с DOCX URL и будущим PDF URL
+            $docxUrl = url('storage/contracts/' . $filename . '.docx');
+            $pdfUrl = url('storage/contracts/' . $filename . '.pdf');
+            
+            // Сохраняем DOCX в public storage для доступа
+            $publicDocxPath = storage_path('app/public/contracts/' . $filename . '.docx');
+            @mkdir(dirname($publicDocxPath), 0775, true);
+            copy($tmpDocx, $publicDocxPath);
+            
+            @unlink($tmpDocx);
+            
+            return response()->json([
+                'contract_url' => $docxUrl,
+                'pdf_url' => $pdfUrl,
+                'message' => 'Contract generated. DOCX available now, PDF will be ready shortly.',
+                'filename' => $filename
+            ]);
             
         } catch (\Exception $e) {
             Log::error('Contract generation failed', [
@@ -481,5 +449,59 @@ class ManychatContractController extends Controller
             'message' => 'Pandoc test endpoint',
             'timestamp' => now()->format('Y-m-d H:i:s')
         ]);
+    }
+
+    public function zamzarWebhook(Request $request)
+    {
+        Log::info('Zamzar webhook received', [
+            'headers' => $request->headers->all(),
+            'body' => $request->all()
+        ]);
+
+        $data = $request->all();
+        
+        if ($data['status'] === 'successful') {
+            $jobId = $data['id'];
+            $fileId = $data['target_files'][0]['id'] ?? null;
+            
+            if ($fileId) {
+                // Скачиваем готовый PDF
+                $zamzarApiKey = config('services.zamzar.api_key');
+                
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/files/' . $fileId . '/content');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                curl_setopt($ch, CURLOPT_USERPWD, $zamzarApiKey . ':');
+                
+                $pdfContent = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                if ($httpCode === 200 && $pdfContent) {
+                    // Извлекаем имя файла из job_id (сохраняем mapping в кеше)
+                    $filename = Cache::get("zamzar_job_{$jobId}");
+                    
+                    if ($filename) {
+                        $pdfPath = storage_path('app/public/contracts/' . $filename . '.pdf');
+                        
+                        // Создаем директорию если не существует
+                        @mkdir(dirname($pdfPath), 0775, true);
+                        
+                        file_put_contents($pdfPath, $pdfContent);
+                        
+                        Log::info('PDF saved via webhook', [
+                            'job_id' => $jobId,
+                            'filename' => $filename,
+                            'size' => strlen($pdfContent)
+                        ]);
+                        
+                        // Очищаем кеш
+                        Cache::forget("zamzar_job_{$jobId}");
+                    }
+                }
+            }
+        }
+        
+        return response()->json(['status' => 'received']);
     }
 }
