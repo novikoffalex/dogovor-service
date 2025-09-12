@@ -469,6 +469,18 @@ class ManychatContractController extends Controller
 
         $data = $request->all();
         
+        // Обрабатываем challenge для верификации webhook
+        if (isset($data['type']) && $data['type'] === 'webhook.challenge') {
+            $token = $data['data']['token'] ?? null;
+            
+            Log::info('Zamzar webhook challenge received', ['token' => $token]);
+            
+            if ($token) {
+                return response()->json(['token' => $token]);
+            }
+        }
+        
+        // Обрабатываем успешную конвертацию
         if ($data['status'] === 'successful') {
             $jobId = $data['id'];
             $fileId = $data['target_files'][0]['id'] ?? null;
