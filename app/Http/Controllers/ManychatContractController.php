@@ -112,8 +112,11 @@ class ManychatContractController extends Controller
             // Сохраняем в S3
             try {
                 Storage::disk('s3')->put($docxRel, file_get_contents($tmpDocx), 'public');
-                $fileUrl = Storage::disk('s3')->url($docxRel);
+                // Используем правильный S3 URL
+                $fileUrl = 'https://fls-9fd6221b-0ca4-45b4-8af8-343326c54146.laravel.cloud/contracts/' . $filename . '.docx';
+                Log::info('File saved to S3', ['s3_url' => $fileUrl]);
             } catch (\Exception $e) {
+                Log::warning('S3 save failed, using fallback', ['error' => $e->getMessage()]);
                 // Fallback к public storage
                 $publicPath = storage_path('app/public/'.$docxRel);
                 @mkdir(dirname($publicPath), 0775, true);
