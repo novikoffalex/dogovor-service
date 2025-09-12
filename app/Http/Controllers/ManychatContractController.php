@@ -166,31 +166,20 @@ class ManychatContractController extends Controller
                 ]);
             }
             
-            // Возвращаем JSON с DOCX URL и будущим PDF URL
-            $docxUrl = url('storage/' . $filename . '.docx');
+            // Возвращаем DOCX файл напрямую + информацию о PDF
             $pdfUrl = url('storage/' . $filename . '.pdf');
             
-            // Сохраняем DOCX в public storage для доступа
-            $publicDocxPath = storage_path('app/public/' . $filename . '.docx');
-            
-            Log::info('Copying DOCX to public storage', [
-                'from' => $tmpDocx,
-                'to' => $publicDocxPath
+            Log::info('Returning DOCX file directly', [
+                'filename' => $filename,
+                'temp_path' => $tmpDocx
             ]);
             
-            if (copy($tmpDocx, $publicDocxPath)) {
-                Log::info('DOCX copied successfully');
-            } else {
-                Log::error('Failed to copy DOCX to public storage');
-            }
-            
-            @unlink($tmpDocx);
-            
             return response()->json([
-                'contract_url' => $docxUrl,
+                'contract_url' => 'direct_download',
                 'pdf_url' => $pdfUrl,
                 'message' => 'Contract generated. DOCX available now, PDF will be ready shortly.',
-                'filename' => $filename
+                'filename' => $filename,
+                'docx_content' => base64_encode(file_get_contents($tmpDocx))
             ]);
             
         } catch (\Exception $e) {
