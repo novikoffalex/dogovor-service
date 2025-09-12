@@ -101,20 +101,32 @@ class ManychatContractController extends Controller
                 return response()->json(['contract_url' => Storage::url($pdfRel)]);
             }
             
-            // Отправляем задачу в очередь для PDF конвертации
+            // Пытаемся сгенерировать PDF синхронно (быстро)
             try {
-                GenerateContractJob::dispatch($data);
-                Log::info('PDF conversion queued for async processing', ['filename' => $filename]);
-                
-                // Возвращаем DOCX немедленно, PDF будет готов позже
+                $this->convertToPdf($docxRel, $pdfRel);
+                Log::info('PDF generated synchronously', [
+                    'filename' => $filename,
+                    'pdf_url' => Storage::url($pdfRel)
+                ]);
                 return response()->json([
-                    'contract_url' => Storage::url($docxRel),
-                    'pdf_url' => Storage::url($pdfRel), // Будущий URL для PDF
-                    'message' => 'PDF conversion started in background. DOCX available now.'
+                    'contract_url' => Storage::url($pdfRel), // Возвращаем PDF
+                    'pdf_url' => Storage::url($pdfRel)
                 ]);
             } catch (\Exception $e) {
-                Log::error('PDF conversion queue failed', ['error' => $e->getMessage()]);
-                return response()->json(['contract_url' => Storage::url($docxRel)]);
+                Log::error('PDF conversion failed', ['error' => $e->getMessage()]);
+                // Fallback: отправляем в очередь
+                try {
+                    GenerateContractJob::dispatch($data);
+                    Log::info('PDF conversion queued for async processing', ['filename' => $filename]);
+                    return response()->json([
+                        'contract_url' => Storage::url($docxRel),
+                        'pdf_url' => Storage::url($pdfRel),
+                        'message' => 'PDF conversion started in background. DOCX available now.'
+                    ]);
+                } catch (\Exception $e2) {
+                    Log::error('PDF conversion queue failed', ['error' => $e2->getMessage()]);
+                    return response()->json(['contract_url' => Storage::url($docxRel)]);
+                }
             }
         }
         
@@ -204,7 +216,7 @@ class ManychatContractController extends Controller
             $jobId = $job['id'];
             
             // Ждем завершения конвертации (до 180 секунд)
-            $maxWaitTime = 180;
+            $maxWaitTime = 8;
             $waitTime = 0;
             
             while ($waitTime < $maxWaitTime) {
