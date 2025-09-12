@@ -14,3 +14,8 @@ Route::get('/api/ping', fn () => 'pong from web');
 Route::post('/api/manychat/contract', [ManychatContractController::class, 'generate'])
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
     ->middleware('api');
+
+// Webhook route for Zamzar
+Route::post('/api/zamzar/webhook', [ManychatContractController::class, 'zamzarWebhook'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+    ->middleware('api');
