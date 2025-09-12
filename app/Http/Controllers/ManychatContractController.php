@@ -285,4 +285,18 @@ class ManychatContractController extends Controller
     {
         return response()->json(['message' => 'PDF endpoint works!', 'timestamp' => now()->format('Y-m-d H:i:s')]);
     }
+
+    public function testPandoc()
+    {
+        // Проверяем, есть ли Pandoc
+        $pandocVersion = shell_exec('pandoc --version 2>&1');
+        $whichPandoc = shell_exec('which pandoc 2>&1');
+        
+        return response()->json([
+            'pandoc_version' => $pandocVersion,
+            'pandoc_path' => $whichPandoc,
+            'message' => 'Pandoc test endpoint',
+            'timestamp' => now()->format('Y-m-d H:i:s')
+        ]);
+    }
 }

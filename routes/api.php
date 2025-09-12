@@ -6,4 +6,5 @@ Route::post('/manychat/contract', [ManychatContractController::class, 'generate'
 Route::post('/manychat/contract/pdf', [ManychatContractController::class, 'generatePdfSimple']);
 Route::get('/manychat/contract/pdf/{filename}', [ManychatContractController::class, 'getPdf']);
 Route::get('/test-pdf', [ManychatContractController::class, 'testPdf']);
+Route::get('/test-pandoc', [ManychatContractController::class, 'testPandoc']);
 Route::get('/ping', fn() => 'pong');
