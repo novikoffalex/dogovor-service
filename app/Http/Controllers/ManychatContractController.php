@@ -109,6 +109,7 @@ class ManychatContractController extends Controller
                 // Возвращаем DOCX немедленно, PDF будет готов позже
                 return response()->json([
                     'contract_url' => Storage::url($docxRel),
+                    'pdf_url' => Storage::url($pdfRel), // Будущий URL для PDF
                     'message' => 'PDF conversion started in background. DOCX available now.'
                 ]);
             } catch (\Exception $e) {
