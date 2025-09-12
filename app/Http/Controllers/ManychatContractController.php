@@ -109,17 +109,24 @@ class ManychatContractController extends Controller
             @mkdir(dirname($tmpDocx), 0775, true);
             $tpl->saveAs($tmpDocx);
             
-            // Копируем в public storage
-            $publicPath = storage_path('app/public/'.$docxRel);
-            @mkdir(dirname($publicPath), 0775, true);
-            copy($tmpDocx, $publicPath);
+            // Сохраняем в S3
+            try {
+                Storage::disk('s3')->put($docxRel, file_get_contents($tmpDocx), 'public');
+                $fileUrl = Storage::disk('s3')->url($docxRel);
+            } catch (\Exception $e) {
+                // Fallback к public storage
+                $publicPath = storage_path('app/public/'.$docxRel);
+                @mkdir(dirname($publicPath), 0775, true);
+                copy($tmpDocx, $publicPath);
+                $fileUrl = Storage::url($docxRel);
+            }
             
             Log::info('Contract generated successfully', [
                 'filename' => $filename,
-                'docx_url' => Storage::url($docxRel)
+                'docx_url' => $fileUrl
             ]);
             
-            return response()->json(['contract_url' => Storage::url($docxRel)]);
+            return response()->json(['contract_url' => $fileUrl]);
             
         } catch (\Exception $e) {
             Log::error('Contract generation failed', [
