@@ -140,11 +140,16 @@ class GenerateContractJob implements ShouldQueue
                             curl_close($ch);
                             
                             if ($pdfContent) {
-                                // Сохраняем PDF
-                                Storage::disk('public')->put($pdfRel, $pdfContent);
+                                // Сохраняем PDF в S3
+                                try {
+                                    Storage::disk('s3')->put($pdfRel, $pdfContent, 'public');
+                                    Log::info('PDF generated successfully via Zamzar and saved to S3', ['url' => Storage::disk('s3')->url($pdfRel)]);
+                                } catch (\Exception $e) {
+                                    // Fallback to public disk
+                                    Storage::disk('public')->put($pdfRel, $pdfContent, 'public');
+                                    Log::info('PDF generated successfully via Zamzar, saved to public disk', ['url' => Storage::url($pdfRel)]);
+                                }
                                 @unlink($tmpDocx);
-                                
-                                Log::info('PDF generated successfully via Zamzar', ['url' => Storage::url($pdfRel)]);
                                 return;
                             }
                         }
