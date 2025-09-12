@@ -80,6 +80,25 @@ class ManychatContractController extends Controller
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
         
+        // Проверяем, нужен ли PDF
+        if ($request->has('format') && $request->get('format') === 'pdf') {
+            // Ждем 25 секунд для PDF конвертации
+            Log::info('Waiting 25 seconds for PDF conversion', ['filename' => $filename]);
+            sleep(25);
+            
+            try {
+                $this->convertToPdf($docxRel, $pdfRel);
+                Log::info('Contract generated with PDF', [
+                    'filename' => $filename,
+                    'pdf_url' => Storage::url($pdfRel)
+                ]);
+                return response()->json(['contract_url' => Storage::url($pdfRel)]);
+            } catch (\Exception $e) {
+                Log::error('PDF conversion failed', ['error' => $e->getMessage()]);
+                return response()->json(['contract_url' => Storage::url($docxRel)]);
+            }
+        }
+        
         Log::info('Contract generated DOCX', [
             'filename' => $filename,
             'docx_url' => Storage::url($docxRel)
@@ -292,5 +311,10 @@ class ManychatContractController extends Controller
             Log::error('PDF conversion failed after wait', ['error' => $e->getMessage()]);
             return response()->json(['contract_url' => Storage::url($docxRel)]);
         }
+    }
+    
+    public function testPdf()
+    {
+        return response()->json(['message' => 'PDF endpoint works!']);
     }
 }
