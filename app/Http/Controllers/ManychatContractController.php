@@ -116,8 +116,15 @@ class ManychatContractController extends Controller
                 $this->convertToPdf($docxRel, $pdfRel);
                 
                 // Проверяем, что PDF действительно создался
-                if (Storage::disk('public')->exists($pdfRel)) {
+                if (Storage::disk('s3')->exists($pdfRel)) {
                     Log::info('PDF conversion completed successfully', [
+                        'filename' => $filename,
+                        'pdf_url' => Storage::disk('s3')->url($pdfRel),
+                        'file_size' => Storage::disk('s3')->size($pdfRel)
+                    ]);
+                    return response()->json(['contract_url' => Storage::disk('s3')->url($pdfRel)]);
+                } elseif (Storage::disk('public')->exists($pdfRel)) {
+                    Log::info('PDF conversion completed successfully (public disk)', [
                         'filename' => $filename,
                         'pdf_url' => Storage::url($pdfRel),
                         'file_size' => Storage::disk('public')->size($pdfRel)
@@ -259,20 +266,28 @@ class ManychatContractController extends Controller
                     curl_close($ch);
                     
                     if ($pdfContent) {
-                        // Сохраняем PDF с правильными правами
-                        Storage::disk('public')->put($pdfRel, $pdfContent, 'public');
-                        
-                        // Устанавливаем публичные права для файла
-                        Storage::disk('public')->setVisibility($pdfRel, 'public');
-                        
-                        Log::info('PDF saved successfully', [
-                            'pdf_path' => $pdfRel,
-                            'file_size' => strlen($pdfContent),
-                            'pdf_url' => Storage::url($pdfRel),
-                            'visibility' => Storage::disk('public')->getVisibility($pdfRel)
-                        ]);
-                        @unlink($tmpDocx); // Удаляем временный DOCX
-                        return;
+                        // Пробуем сохранить в S3 disk с публичными правами
+                        try {
+                            Storage::disk('s3')->put($pdfRel, $pdfContent, 'public');
+                            Log::info('PDF saved to S3 successfully', [
+                                'pdf_path' => $pdfRel,
+                                'file_size' => strlen($pdfContent),
+                                'pdf_url' => Storage::disk('s3')->url($pdfRel)
+                            ]);
+                            @unlink($tmpDocx); // Удаляем временный DOCX
+                            return;
+                        } catch (\Exception $e) {
+                            Log::warning('S3 save failed, trying public disk', ['error' => $e->getMessage()]);
+                            // Fallback к public disk
+                            Storage::disk('public')->put($pdfRel, $pdfContent);
+                            Log::info('PDF saved to public disk', [
+                                'pdf_path' => $pdfRel,
+                                'file_size' => strlen($pdfContent),
+                                'pdf_url' => Storage::url($pdfRel)
+                            ]);
+                            @unlink($tmpDocx);
+                            return;
+                        }
                     } else {
                         Log::error('PDF content is empty', ['file_id' => $fileId]);
                     }
