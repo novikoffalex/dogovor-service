@@ -124,22 +124,29 @@ class ManychatContractController extends Controller
                 if ($zamzarApiKey) {
                     $pdfPath = storage_path('app/temp_'.$filename.'.pdf');
                     
-                    // Создаем задачу конвертации в Zamzar
+                    // Используем простой HTTP API для Zamzar
+                    $postData = [
+                        'source_file' => '@' . $tmpDocx,
+                        'target_format' => 'pdf'
+                    ];
+                    
                     $ch = curl_init();
                     curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
                     curl_setopt($ch, CURLOPT_POST, 1);
                     curl_setopt($ch, CURLOPT_USERPWD, $zamzarApiKey . ':');
-                    
-                    // Загружаем файл через multipart/form-data
-                    $postFields = [
-                        'source_file' => new \CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', $filename.'.docx'),
-                        'target_format' => 'pdf'
-                    ];
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: multipart/form-data'
+                    ]);
                     
                     $response = curl_exec($ch);
                     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    
+                    Log::info('Zamzar API response', [
+                        'http_code' => $httpCode,
+                        'response' => $response
+                    ]);
                     
                     if ($httpCode === 200) {
                         $job = json_decode($response, true);
@@ -160,6 +167,8 @@ class ManychatContractController extends Controller
                             
                             $statusResponse = curl_exec($ch);
                             $status = json_decode($statusResponse, true);
+                            
+                            Log::info('Zamzar job status', ['status' => $status]);
                             
                             if ($status['status'] === 'successful') {
                                 // Скачиваем готовый PDF
