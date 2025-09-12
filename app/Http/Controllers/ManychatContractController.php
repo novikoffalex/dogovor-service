@@ -126,7 +126,7 @@ class ManychatContractController extends Controller
                     
                     // Создаем задачу конвертации
                     $ch = curl_init();
-                    curl_setopt($ch, CURLOPT_URL, 'https://api.cloudconvert.com/v2/jobs');
+                    curl_setopt($ch, CURLOPT_URL, 'https://sync.api.cloudconvert.com/v2/jobs');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
                     curl_setopt($ch, CURLOPT_POST, 1);
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
