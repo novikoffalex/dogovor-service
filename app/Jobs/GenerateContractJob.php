@@ -27,10 +27,6 @@ class GenerateContractJob implements ShouldQueue
      */
     public $timeout = 300;
     
-    /**
-     * The queue the job should be sent to.
-     */
-    public $queue = 'pdf-conversion';
 
     protected $data;
 
