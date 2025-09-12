@@ -80,11 +80,39 @@ class ManychatContractController extends Controller
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
         
+        // Отправляем задачу в очередь для PDF конвертации (если еще не отправлена)
+        if (!$request->has('format') || $request->get('format') !== 'pdf') {
+            try {
+                GenerateContractJob::dispatch($data);
+                Log::info('PDF conversion queued', ['filename' => $filename]);
+            } catch (\Exception $e) {
+                Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
+            }
+        }
+        
         // Проверяем, нужен ли PDF
         if ($request->has('format') && $request->get('format') === 'pdf') {
-            // Ждем 25 секунд для PDF конвертации
-            Log::info('Waiting 25 seconds for PDF conversion', ['filename' => $filename]);
-            sleep(25);
+            // Проверяем, есть ли уже готовый PDF
+            if (Storage::disk('public')->exists($pdfRel)) {
+                Log::info('PDF already exists', [
+                    'filename' => $filename,
+                    'pdf_url' => Storage::url($pdfRel)
+                ]);
+                return response()->json(['contract_url' => Storage::url($pdfRel)]);
+            }
+            
+            // Ждем 15 секунд для PDF конвертации
+            Log::info('Waiting 15 seconds for PDF conversion', ['filename' => $filename]);
+            sleep(15);
+            
+            // Проверяем еще раз после ожидания
+            if (Storage::disk('public')->exists($pdfRel)) {
+                Log::info('PDF ready after wait', [
+                    'filename' => $filename,
+                    'pdf_url' => Storage::url($pdfRel)
+                ]);
+                return response()->json(['contract_url' => Storage::url($pdfRel)]);
+            }
             
             try {
                 $this->convertToPdf($docxRel, $pdfRel);
