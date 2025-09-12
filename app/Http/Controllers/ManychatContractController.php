@@ -75,9 +75,19 @@ class ManychatContractController extends Controller
         }
         $filename = $safeName.'_'.$data['contract_number'];
         $docxRel = 'contracts/'.$filename.'.docx';
+        $pdfRel = 'contracts/'.$filename.'.pdf';
         
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
+        
+        // Проверяем, есть ли уже PDF
+        if (Storage::disk('public')->exists($pdfRel)) {
+            Log::info('Contract generated with existing PDF', [
+                'filename' => $filename,
+                'pdf_url' => Storage::url($pdfRel)
+            ]);
+            return response()->json(['contract_url' => Storage::url($pdfRel)]);
+        }
         
         // Отправляем задачу в очередь для PDF конвертации
         try {
@@ -87,9 +97,9 @@ class ManychatContractController extends Controller
             Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
         }
         
-        Log::info('Contract generated', [
+        Log::info('Contract generated DOCX', [
             'filename' => $filename,
-            'url' => Storage::url($docxRel)
+            'docx_url' => Storage::url($docxRel)
         ]);
         
         return response()->json(['contract_url' => Storage::url($docxRel)]);
@@ -142,6 +152,81 @@ class ManychatContractController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
+        }
+    }
+    
+    private function convertToPdf($docxRel, $pdfRel)
+    {
+        $apiKey = '4bb76644955076ff4def01f10b50e2ad7c0e4b00';
+        $tmpDocx = storage_path('app/public/'.$docxRel);
+        
+        // Загружаем файл на Zamzar
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
+        
+        $postData = [
+            'source_file' => new \CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'contract.docx'),
+            'target_format' => 'pdf'
+        ];
+        
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode === 200 || $httpCode === 201) {
+            $job = json_decode($response, true);
+            $jobId = $job['id'];
+            
+            // Ждем завершения конвертации (до 180 секунд)
+            $maxWaitTime = 180;
+            $waitTime = 0;
+            
+            while ($waitTime < $maxWaitTime) {
+                sleep(3);
+                $waitTime += 3;
+                
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs/' . $jobId);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
+                
+                $statusResponse = curl_exec($ch);
+                curl_close($ch);
+                
+                $status = json_decode($statusResponse, true);
+                
+                if ($status['status'] === 'successful') {
+                    // Получаем результат
+                    $fileId = $status['target_files'][0]['id'];
+                    
+                    $ch = curl_init();
+                    curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/files/' . $fileId . '/content');
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
+                    
+                    $pdfContent = curl_exec($ch);
+                    curl_close($ch);
+                    
+                    if ($pdfContent) {
+                        // Сохраняем PDF
+                        Storage::disk('public')->put($pdfRel, $pdfContent);
+                        return;
+                    }
+                }
+                
+                if ($status['status'] === 'failed') {
+                    throw new \Exception('Zamzar conversion failed');
+                }
+            }
+            
+            throw new \Exception('Zamzar conversion timeout');
+        } else {
+            throw new \Exception('Failed to create Zamzar job: ' . $response);
         }
     }
 }
