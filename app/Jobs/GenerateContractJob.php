@@ -78,7 +78,7 @@ class GenerateContractJob implements ShouldQueue
                 
                 // Загружаем файл на Zamzar
                 $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, 'https://sandbox.zamzar.com/v1/jobs');
+                curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
@@ -107,7 +107,7 @@ class GenerateContractJob implements ShouldQueue
                         $waitTime += 3;
                         
                         $ch = curl_init();
-                        curl_setopt($ch, CURLOPT_URL, 'https://sandbox.zamzar.com/v1/jobs/' . $jobId);
+                        curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/jobs/' . $jobId);
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                         curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
                         
@@ -121,7 +121,7 @@ class GenerateContractJob implements ShouldQueue
                             $fileId = $status['target_files'][0]['id'];
                             
                             $ch = curl_init();
-                            curl_setopt($ch, CURLOPT_URL, 'https://sandbox.zamzar.com/v1/files/' . $fileId . '/content');
+                            curl_setopt($ch, CURLOPT_URL, 'https://api.zamzar.com/v1/files/' . $fileId . '/content');
                             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                             curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
                             
