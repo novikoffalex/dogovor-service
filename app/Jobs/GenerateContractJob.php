@@ -72,68 +72,34 @@ class GenerateContractJob implements ShouldQueue
             // Сохраняем DOCX
             $tpl->saveAs($tmpDocx);
             
-            // Конвертируем в PDF через CloudConvert API
+            // Конвертируем в PDF через Zamzar API
             try {
-                $apiKey = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiZjA3NzgwYmZiZDczMmJkMzJkMzMwYWM0MWFjNTQyMjlmYWQyZjI4Y2FjZjFhYTI1MDliMTAwMzdiYmU0YjdkMzBmMDBmNTIzMDAyN2NkMWUiLCJpYXQiOjE3NTc1NzU1NDEuMzUxMTExLCJuYmYiOjE3NTc1NzU1NDEuMzUxMTEyLCJleHAiOjQ5MTMyNDkxNDEuMzQ1NjY3LCJzdWIiOiI3Mjg4NDE5MiIsInNjb3BlcyI6W119.HsjN-uJG6vBr0DIhI1hukgtJS0yxnjMlhMO6SdKuKLYUHLEITInscRRwSwU_L0s4TFRvx0Nqjs25BV96NeRJM8iuxdSCxWUU5No20EDjs8PHyzSOOjLGNxyzOx30wyuI_viA03jhLiwoaaKIY-ls52kQ3ExPvzA7NiuMNxDcJUlUEPysG6cZGfXphu9tOCwbrd3Ar7S-AzPKI4MRfyLmPYRZvYuqg_sUAQ2zoQk6ukexBIHGXD6VD73ZZ8Gwige6ZEtbplJ5ky8ddn9JEiIxqom4fzzqVC45yg3nZtFs76lfYjx-lKCf3KT1aedywpif_FvooyuKywxns7sNEBzCU8E13LpdCNHUKQ40C3zKxbi9n6VX39cxV42eNWUhL97iBChInBcZbRaquYwPUJi5HVoDQK9SCmpyIAfGokiGO-rV-_TiAuh6fXCl4HJ_9gT4buLt2fReSMLzh0_PrtdQPlR2JXKeIotVU6Hy_WedgefF0eoIkAGk14klm-uwY7yfwqCoJlWD2nCJP454qGqCGAd7rac3zHDZxJJWuURAHs0FQlrue02ik7EKtqElXoU_TGV7d_nfy5l7wAFH-Vm2PbtI3cbldIyc4yLabjxMzrSyrE_nOuQMG9Zem1iiCp4lEzOmZjvD54wVoaBlDCI6DYLfW8wTYeTCW9AM7y2JpeE';
+                $apiKey = '4bb76644955076ff4def01f10b50e2ad7c0e4b00';
                 
-                // Создаем задачу в CloudConvert
+                // Загружаем файл на Zamzar
                 $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, 'https://api.cloudconvert.com/v2/jobs');
+                curl_setopt($ch, CURLOPT_URL, 'https://sandbox.zamzar.com/v1/jobs');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Authorization: Bearer ' . $apiKey,
-                    'Content-Type: application/json'
-                ]);
+                curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
                 
-                $jobData = [
-                    'tasks' => [
-                        'upload-my-file' => [
-                            'operation' => 'import/upload'
-                        ],
-                        'convert-my-file' => [
-                            'operation' => 'convert',
-                            'input' => 'upload-my-file',
-                            'output_format' => 'pdf'
-                        ],
-                        'export-my-file' => [
-                            'operation' => 'export/url'
-                        ]
-                    ]
+                $postData = [
+                    'source_file' => new \CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'contract.docx'),
+                    'target_format' => 'pdf'
                 ];
                 
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($jobData));
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
                 
                 $response = curl_exec($ch);
                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 curl_close($ch);
                 
                 if ($httpCode === 200 || $httpCode === 201) {
-                    $jobResponse = json_decode($response, true);
-                    $jobId = $jobResponse['data']['id'];
-                    $uploadUrl = $jobResponse['data']['tasks'][0]['result']['upload_url'];
+                    $job = json_decode($response, true);
+                    $jobId = $job['id'];
                     
-                    // Загружаем файл
-                    $ch = curl_init();
-                    curl_setopt($ch, CURLOPT_URL, $uploadUrl);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_PUT, true);
-                    curl_setopt($ch, CURLOPT_INFILE, fopen($tmpDocx, 'r'));
-                    curl_setopt($ch, CURLOPT_INFILESIZE, filesize($tmpDocx));
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                        'Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                    ]);
-                    
-                    $uploadResponse = curl_exec($ch);
-                    $uploadHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-                    
-                    if ($uploadHttpCode !== 200) {
-                        throw new \Exception('Failed to upload file to CloudConvert: ' . $uploadResponse);
-                    }
-                    
-                    // Ждем завершения конвертации (до 60 секунд)
-                    $maxWaitTime = 60;
+                    // Ждем завершения конвертации (до 180 секунд)
+                    $maxWaitTime = 180;
                     $waitTime = 0;
                     
                     while ($waitTime < $maxWaitTime) {
@@ -141,27 +107,23 @@ class GenerateContractJob implements ShouldQueue
                         $waitTime += 3;
                         
                         $ch = curl_init();
-                        curl_setopt($ch, CURLOPT_URL, "https://api.cloudconvert.com/v2/jobs/{$jobId}");
+                        curl_setopt($ch, CURLOPT_URL, 'https://sandbox.zamzar.com/v1/jobs/' . $jobId);
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                            'Authorization: Bearer ' . $apiKey
-                        ]);
+                        curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
                         
                         $statusResponse = curl_exec($ch);
                         curl_close($ch);
                         
                         $status = json_decode($statusResponse, true);
                         
-                        if ($status['data']['status'] === 'finished') {
-                            // Скачиваем PDF
-                            $downloadUrl = $status['data']['tasks'][2]['result']['files'][0]['url'];
+                        if ($status['status'] === 'successful') {
+                            // Получаем результат
+                            $fileId = $status['target_files'][0]['id'];
                             
                             $ch = curl_init();
-                            curl_setopt($ch, CURLOPT_URL, $downloadUrl);
+                            curl_setopt($ch, CURLOPT_URL, 'https://sandbox.zamzar.com/v1/files/' . $fileId . '/content');
                             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                'Authorization: Bearer ' . $apiKey
-                            ]);
+                            curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ':');
                             
                             $pdfContent = curl_exec($ch);
                             curl_close($ch);
@@ -171,24 +133,24 @@ class GenerateContractJob implements ShouldQueue
                                 Storage::disk('public')->put($pdfRel, $pdfContent);
                                 @unlink($tmpDocx);
                                 
-                                Log::info('PDF generated successfully via CloudConvert', ['url' => Storage::url($pdfRel)]);
+                                Log::info('PDF generated successfully via Zamzar', ['url' => Storage::url($pdfRel)]);
                                 return;
                             }
                         }
                         
-                        if ($status['data']['status'] === 'error') {
-                            Log::error('CloudConvert conversion failed', ['error' => $status['data']]);
-                            throw new \Exception('CloudConvert conversion failed');
+                        if ($status['status'] === 'failed') {
+                            Log::error('Zamzar conversion failed', ['error' => $status]);
+                            throw new \Exception('Zamzar conversion failed');
                         }
                     }
                     
-                    throw new \Exception('CloudConvert conversion timeout');
+                    throw new \Exception('Zamzar conversion timeout');
                 } else {
-                    throw new \Exception('Failed to create CloudConvert job: ' . $response);
+                    throw new \Exception('Failed to create Zamzar job: ' . $response);
                 }
                 
             } catch (\Exception $e) {
-                Log::error('CloudConvert conversion failed, saving DOCX', ['message' => $e->getMessage()]);
+                Log::error('Zamzar conversion failed, saving DOCX', ['message' => $e->getMessage()]);
                 
                 // Если конвертация не удалась, сохраняем DOCX
                 Storage::put($docxRel, file_get_contents($tmpDocx), ['visibility' => 'public']);

@@ -79,8 +79,13 @@ class ManychatContractController extends Controller
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
         
-        // PDF конвертация отключена - используем только DOCX
-        // GenerateContractJob::dispatch($data);
+        // Отправляем задачу в очередь для PDF конвертации
+        try {
+            GenerateContractJob::dispatch($data);
+            Log::info('PDF conversion queued', ['filename' => $filename]);
+        } catch (\Exception $e) {
+            Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
+        }
         
         Log::info('Contract generated', [
             'filename' => $filename,
