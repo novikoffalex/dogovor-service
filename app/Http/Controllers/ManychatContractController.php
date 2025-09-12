@@ -167,12 +167,11 @@ class ManychatContractController extends Controller
             }
             
             // Возвращаем JSON с DOCX URL и будущим PDF URL
-            $docxUrl = url('storage/contracts/' . $filename . '.docx');
-            $pdfUrl = url('storage/contracts/' . $filename . '.pdf');
+            $docxUrl = url('storage/' . $filename . '.docx');
+            $pdfUrl = url('storage/' . $filename . '.pdf');
             
             // Сохраняем DOCX в public storage для доступа
-            $publicDocxPath = storage_path('app/public/contracts/' . $filename . '.docx');
-            @mkdir(dirname($publicDocxPath), 0775, true);
+            $publicDocxPath = storage_path('app/public/' . $filename . '.docx');
             
             Log::info('Copying DOCX to public storage', [
                 'from' => $tmpDocx,
@@ -503,10 +502,7 @@ class ManychatContractController extends Controller
                     $filename = Cache::get("zamzar_job_{$jobId}");
                     
                     if ($filename) {
-                        $pdfPath = storage_path('app/public/contracts/' . $filename . '.pdf');
-                        
-                        // Создаем директорию если не существует
-                        @mkdir(dirname($pdfPath), 0775, true);
+                        $pdfPath = storage_path('app/public/' . $filename . '.pdf');
                         
                         file_put_contents($pdfPath, $pdfContent);
                         
