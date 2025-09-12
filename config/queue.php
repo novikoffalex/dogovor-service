@@ -43,6 +43,14 @@ return [
             'after_commit' => false,
         ],
 
+        'laravel-cloud' => [
+            'driver' => 'database',
+            'table' => 'jobs',
+            'queue' => env('QUEUE_NAME', 'default'),
+            'retry_after' => 300,
+            'block_for' => 0,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

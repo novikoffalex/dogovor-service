@@ -17,6 +17,21 @@ class GenerateContractJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * The number of times the job may be attempted.
+     */
+    public $tries = 3;
+    
+    /**
+     * The maximum number of seconds the job can run.
+     */
+    public $timeout = 300;
+    
+    /**
+     * The queue the job should be sent to.
+     */
+    public $queue = 'pdf-conversion';
+
     protected $data;
 
     public function __construct($data)
