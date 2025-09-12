@@ -173,7 +173,17 @@ class ManychatContractController extends Controller
             // Сохраняем DOCX в public storage для доступа
             $publicDocxPath = storage_path('app/public/contracts/' . $filename . '.docx');
             @mkdir(dirname($publicDocxPath), 0775, true);
-            copy($tmpDocx, $publicDocxPath);
+            
+            Log::info('Copying DOCX to public storage', [
+                'from' => $tmpDocx,
+                'to' => $publicDocxPath
+            ]);
+            
+            if (copy($tmpDocx, $publicDocxPath)) {
+                Log::info('DOCX copied successfully');
+            } else {
+                Log::error('Failed to copy DOCX to public storage');
+            }
             
             @unlink($tmpDocx);
             
