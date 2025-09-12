@@ -80,15 +80,15 @@ class ManychatContractController extends Controller
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
         
-        // Отправляем задачу в очередь для PDF конвертации (только для обычных DOCX запросов)
-        if (!$request->has('format') || $request->get('format') !== 'pdf') {
-            try {
-                GenerateContractJob::dispatch($data);
-                Log::info('PDF conversion queued for background', ['filename' => $filename]);
-            } catch (\Exception $e) {
-                Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
-            }
-        }
+        // ВРЕМЕННО: Отключаем фоновую PDF конвертацию
+        // if (!$request->has('format') || $request->get('format') !== 'pdf') {
+        //     try {
+        //         GenerateContractJob::dispatch($data);
+        //         Log::info('PDF conversion queued for background', ['filename' => $filename]);
+        //     } catch (\Exception $e) {
+        //         Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
+        //     }
+        // }
         
         // Проверяем, нужен ли PDF
         if ($request->has('format') && $request->get('format') === 'pdf') {
