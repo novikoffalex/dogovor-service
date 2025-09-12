@@ -101,22 +101,25 @@ class ManychatContractController extends Controller
                 return response()->json(['contract_url' => Storage::url($pdfRel)]);
             }
             
-            // Отправляем задачу в управляемую очередь Laravel Cloud
+            // ВРЕМЕННО: Синхронная PDF конвертация с задержкой
             try {
-                GenerateContractJob::dispatch($data)
-                    ->onQueue('pdf-conversion')
-                    ->delay(now()->addSeconds(5)); // Небольшая задержка для стабильности
+                Log::info('Starting synchronous PDF conversion', ['filename' => $filename]);
                 
-                Log::info('PDF conversion queued for managed queue processing', ['filename' => $filename]);
+                // Небольшая задержка для стабильности
+                sleep(2);
                 
-                // Возвращаем DOCX немедленно, PDF будет готов позже
-                return response()->json([
-                    'contract_url' => Storage::url($docxRel),
-                    'pdf_url' => Storage::url($pdfRel), // Будущий URL для PDF
-                    'message' => 'PDF conversion started in background. DOCX available now.'
+                // Конвертируем в PDF
+                $this->convertToPdf($docxRel, $pdfRel);
+                
+                Log::info('PDF conversion completed synchronously', [
+                    'filename' => $filename,
+                    'pdf_url' => Storage::url($pdfRel)
                 ]);
+                
+                return response()->json(['contract_url' => Storage::url($pdfRel)]);
             } catch (\Exception $e) {
-                Log::error('PDF conversion queue failed', ['error' => $e->getMessage()]);
+                Log::error('Synchronous PDF conversion failed', ['error' => $e->getMessage()]);
+                // Fallback к DOCX
                 return response()->json(['contract_url' => Storage::url($docxRel)]);
             }
         }
