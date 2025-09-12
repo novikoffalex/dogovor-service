@@ -101,10 +101,15 @@ class ManychatContractController extends Controller
                 return response()->json(['contract_url' => Storage::url($pdfRel)]);
             }
             
-            // Отправляем задачу в очередь для PDF конвертации
+            // Запускаем PDF конвертацию в фоне через exec
             try {
+                // Запускаем Job в фоне через exec
+                $command = "cd " . base_path() . " && php artisan queue:work --stop-when-empty --tries=3 --timeout=300 > /dev/null 2>&1 &";
+                exec($command);
+                
+                // Отправляем Job в очередь
                 GenerateContractJob::dispatch($data);
-                Log::info('PDF conversion queued for async processing', ['filename' => $filename]);
+                Log::info('PDF conversion started in background', ['filename' => $filename]);
                 
                 // Возвращаем DOCX немедленно, PDF будет готов позже
                 return response()->json([
@@ -113,7 +118,7 @@ class ManychatContractController extends Controller
                     'message' => 'PDF conversion started in background. DOCX available now.'
                 ]);
             } catch (\Exception $e) {
-                Log::error('PDF conversion queue failed', ['error' => $e->getMessage()]);
+                Log::error('PDF conversion failed', ['error' => $e->getMessage()]);
                 return response()->json(['contract_url' => Storage::url($docxRel)]);
             }
         }
