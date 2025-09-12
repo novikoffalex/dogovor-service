@@ -93,13 +93,7 @@ class ManychatContractController extends Controller
         // Проверяем, нужен ли PDF
         if ($request->has('format') && $request->get('format') === 'pdf') {
             // Проверяем, есть ли уже готовый PDF
-            if (Storage::disk('s3')->exists($pdfRel)) {
-                Log::info('PDF already exists in S3', [
-                    'filename' => $filename,
-                    'pdf_url' => Storage::disk('s3')->url($pdfRel)
-                ]);
-                return response()->json(['contract_url' => Storage::disk('s3')->url($pdfRel)]);
-            } elseif (Storage::disk('public')->exists($pdfRel)) {
+            if (Storage::disk('public')->exists($pdfRel)) {
                 Log::info('PDF already exists in public disk', [
                     'filename' => $filename,
                     'pdf_url' => Storage::url($pdfRel)
@@ -118,7 +112,7 @@ class ManychatContractController extends Controller
                 // Возвращаем DOCX немедленно, PDF будет готов позже
                 return response()->json([
                     'contract_url' => Storage::url($docxRel),
-                    'pdf_url' => Storage::disk('s3')->url($pdfRel), // Будущий URL для PDF
+                    'pdf_url' => Storage::url($pdfRel), // Будущий URL для PDF
                     'message' => 'PDF conversion started in background. DOCX available now.'
                 ]);
             } catch (\Exception $e) {
