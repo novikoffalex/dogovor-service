@@ -109,20 +109,15 @@ class ManychatContractController extends Controller
             @mkdir(dirname($tmpDocx), 0775, true);
             $tpl->saveAs($tmpDocx);
             
-            // Временно используем только public storage
-            $publicPath = storage_path('app/public/'.$docxRel);
-            @mkdir(dirname($publicPath), 0775, true);
-            copy($tmpDocx, $publicPath);
-            $fileUrl = Storage::url($docxRel);
-            
-            Log::info('File saved to public storage', ['public_url' => $fileUrl]);
-            
             Log::info('Contract generated successfully', [
                 'filename' => $filename,
-                'docx_url' => $fileUrl
+                'temp_path' => $tmpDocx
             ]);
             
-            return response()->json(['contract_url' => $fileUrl]);
+            // Возвращаем файл напрямую в ответе
+            return response()->download($tmpDocx, $filename.'.docx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ])->deleteFileAfterSend(true);
             
         } catch (\Exception $e) {
             Log::error('Contract generation failed', [
