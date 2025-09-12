@@ -148,7 +148,7 @@ class ManychatContractController extends Controller
                         'response' => $response
                     ]);
                     
-                    if ($httpCode === 200) {
+                    if ($httpCode === 200 || $httpCode === 201) {
                         $job = json_decode($response, true);
                         $jobId = $job['id'];
                         
