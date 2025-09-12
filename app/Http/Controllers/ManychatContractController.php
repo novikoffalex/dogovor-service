@@ -80,18 +80,29 @@ class ManychatContractController extends Controller
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
         
-        // Всегда конвертируем в PDF синхронно
-        try {
-            $this->convertToPdf($docxRel, $pdfRel);
-            Log::info('Contract generated with PDF', [
+        // Проверяем, есть ли уже PDF
+        if (Storage::disk('public')->exists($pdfRel)) {
+            Log::info('Contract generated with existing PDF', [
                 'filename' => $filename,
                 'pdf_url' => Storage::url($pdfRel)
             ]);
             return response()->json(['contract_url' => Storage::url($pdfRel)]);
-        } catch (\Exception $e) {
-            Log::warning('PDF conversion failed, returning DOCX', ['error' => $e->getMessage()]);
-            return response()->json(['contract_url' => Storage::url($docxRel)]);
         }
+        
+        // Отправляем задачу в очередь для PDF конвертации
+        try {
+            GenerateContractJob::dispatch($data);
+            Log::info('PDF conversion queued', ['filename' => $filename]);
+        } catch (\Exception $e) {
+            Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
+        }
+        
+        Log::info('Contract generated DOCX', [
+            'filename' => $filename,
+            'docx_url' => Storage::url($docxRel)
+        ]);
+        
+        return response()->json(['contract_url' => Storage::url($docxRel)]);
     }
     
     private function generateDocxOnly($data, $docxRel)
@@ -216,6 +227,87 @@ class ManychatContractController extends Controller
             throw new \Exception('Zamzar conversion timeout');
         } else {
             throw new \Exception('Failed to create Zamzar job: ' . $response);
+        }
+    }
+    
+    public function generatePdf(Request $request)
+    {
+        // Проверяем токен
+        if ($request->header('X-Auth-Token') !== config('services.manychat.token')) {
+            return response()->json(['error' => 'unauthorized'], 401);
+        }
+        
+        // Валидируем данные
+        $data = $request->validate([
+            'client_full_name' => 'required|string|max:255',
+            'passport_full' => 'required|string|max:50',
+            'inn' => 'required|string|max:20',
+            'client_address' => 'required|string|max:500',
+            'bank_name' => 'required|string|max:255',
+            'bank_account' => 'required|string|max:50',
+            'bank_bik' => 'required|string|max:20',
+            'bank_swift' => 'required|string|max:20',
+        ]);
+        
+        Log::info('PDF generation request received', $data);
+        
+        // Парсим паспорт
+        if (preg_match('/^(\d{4})\s+(\d{6})$/', $data['passport_full'], $matches)) {
+            $data['passport_series'] = $matches[1];
+            $data['passport_number'] = $matches[2];
+        } else {
+            return response()->json(['error' => 'invalid_passport_format'], 400);
+        }
+        
+        // Генерируем номер договора
+        $today = now()->format('Ymd');
+        $cacheKey = "contract_counter_{$today}";
+        $counter = Cache::store('database')->increment($cacheKey, 1);
+        $data['contract_number'] = $today . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT);
+        
+        // Генерируем дату
+        $months = [
+            1 => 'января', 2 => 'февраля', 3 => 'марта', 4 => 'апреля',
+            5 => 'мая', 6 => 'июня', 7 => 'июля', 8 => 'августа',
+            9 => 'сентября', 10 => 'октября', 11 => 'ноября', 12 => 'декабря'
+        ];
+        $data['contract_date'] = '«' . now()->format('d') . '» ' . $months[now()->month] . ' ' . now()->format('Y') . ' г.';
+        
+        // Формируем имена файлов
+        $safeName = Str::slug($data['client_full_name'], '_');
+        if ($safeName === '') {
+            $safeName = 'contract';
+        }
+        $filename = $safeName.'_'.$data['contract_number'];
+        $docxRel = 'contracts/'.$filename.'.docx';
+        $pdfRel = 'contracts/'.$filename.'.pdf';
+        
+        // Ждем 25 секунд для PDF конвертации
+        Log::info('Waiting 25 seconds for PDF conversion', ['filename' => $filename]);
+        sleep(25);
+        
+        // Проверяем, есть ли PDF
+        if (Storage::disk('public')->exists($pdfRel)) {
+            Log::info('PDF ready', [
+                'filename' => $filename,
+                'pdf_url' => Storage::url($pdfRel)
+            ]);
+            return response()->json(['contract_url' => Storage::url($pdfRel)]);
+        }
+        
+        // Если PDF нет, генерируем DOCX и конвертируем в PDF
+        $this->generateDocxOnly($data, $docxRel);
+        
+        try {
+            $this->convertToPdf($docxRel, $pdfRel);
+            Log::info('PDF generated after wait', [
+                'filename' => $filename,
+                'pdf_url' => Storage::url($pdfRel)
+            ]);
+            return response()->json(['contract_url' => Storage::url($pdfRel)]);
+        } catch (\Exception $e) {
+            Log::error('PDF conversion failed after wait', ['error' => $e->getMessage()]);
+            return response()->json(['contract_url' => Storage::url($docxRel)]);
         }
     }
 }
