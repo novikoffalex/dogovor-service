@@ -339,6 +339,6 @@ class ManychatContractController extends Controller
     
     public function testPdf()
     {
-        return response()->json(['message' => 'PDF endpoint works!']);
+        return response()->json(['message' => 'PDF endpoint works!', 'timestamp' => now()->format('Y-m-d H:i:s')]);
     }
 }
