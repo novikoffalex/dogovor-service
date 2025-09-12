@@ -101,32 +101,20 @@ class ManychatContractController extends Controller
                 return response()->json(['contract_url' => Storage::url($pdfRel)]);
             }
             
-            // Пытаемся сгенерировать PDF синхронно (быстро)
+            // Отправляем задачу в очередь для PDF конвертации
             try {
-                $this->convertToPdf($docxRel, $pdfRel);
-                Log::info('PDF generated synchronously', [
-                    'filename' => $filename,
-                    'pdf_url' => Storage::url($pdfRel)
-                ]);
+                GenerateContractJob::dispatch($data);
+                Log::info('PDF conversion queued for async processing', ['filename' => $filename]);
+                
+                // Возвращаем DOCX немедленно, PDF будет готов позже
                 return response()->json([
-                    'contract_url' => Storage::url($pdfRel), // Возвращаем PDF
-                    'pdf_url' => Storage::url($pdfRel)
+                    'contract_url' => Storage::url($docxRel),
+                    'pdf_url' => Storage::url($pdfRel), // Будущий URL для PDF
+                    'message' => 'PDF conversion started in background. DOCX available now.'
                 ]);
             } catch (\Exception $e) {
-                Log::error('PDF conversion failed', ['error' => $e->getMessage()]);
-                // Fallback: отправляем в очередь
-                try {
-                    GenerateContractJob::dispatch($data);
-                    Log::info('PDF conversion queued for async processing', ['filename' => $filename]);
-                    return response()->json([
-                        'contract_url' => Storage::url($docxRel),
-                        'pdf_url' => Storage::url($pdfRel),
-                        'message' => 'PDF conversion started in background. DOCX available now.'
-                    ]);
-                } catch (\Exception $e2) {
-                    Log::error('PDF conversion queue failed', ['error' => $e2->getMessage()]);
-                    return response()->json(['contract_url' => Storage::url($docxRel)]);
-                }
+                Log::error('PDF conversion queue failed', ['error' => $e->getMessage()]);
+                return response()->json(['contract_url' => Storage::url($docxRel)]);
             }
         }
         
