@@ -80,46 +80,9 @@ class ManychatContractController extends Controller
         // Генерируем DOCX
         $this->generateDocxOnly($data, $docxRel);
         
-        // Отправляем задачу в очередь для PDF конвертации (только для обычных DOCX запросов)
-        if (!$request->has('format') || $request->get('format') !== 'pdf') {
-            try {
-                GenerateContractJob::dispatch($data);
-                Log::info('PDF conversion queued for background', ['filename' => $filename]);
-            } catch (\Exception $e) {
-                Log::warning('PDF conversion queue failed', ['error' => $e->getMessage()]);
-            }
-        }
+        // Пока убираем PDF конвертацию в фоне
         
-        // Проверяем, нужен ли PDF
-        if ($request->has('format') && $request->get('format') === 'pdf') {
-            // Проверяем, есть ли уже готовый PDF
-            if (Storage::disk('public')->exists($pdfRel)) {
-                Log::info('PDF already exists in public disk', [
-                    'filename' => $filename,
-                    'pdf_url' => Storage::url($pdfRel)
-                ]);
-                return response()->json(['contract_url' => Storage::url($pdfRel)]);
-            }
-            
-            // Отправляем задачу в управляемую очередь Laravel Cloud
-            try {
-                GenerateContractJob::dispatch($data)
-                    ->onQueue('pdf-conversion')
-                    ->delay(now()->addSeconds(2)); // Небольшая задержка для стабильности
-                
-                Log::info('PDF conversion queued for managed queue processing', ['filename' => $filename]);
-                
-                // Возвращаем DOCX немедленно, PDF будет готов позже
-                return response()->json([
-                    'contract_url' => Storage::url($docxRel),
-                    'pdf_url' => Storage::url($pdfRel), // Будущий URL для PDF
-                    'message' => 'PDF conversion started in background. DOCX available now.'
-                ]);
-            } catch (\Exception $e) {
-                Log::error('PDF conversion queue failed', ['error' => $e->getMessage()]);
-                return response()->json(['contract_url' => Storage::url($docxRel)]);
-            }
-        }
+        // Пока убираем PDF конвертацию, работаем только с DOCX
         
         Log::info('Contract generated DOCX', [
             'filename' => $filename,
