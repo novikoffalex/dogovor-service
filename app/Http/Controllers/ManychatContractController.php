@@ -130,10 +130,13 @@ class ManychatContractController extends Controller
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
                     curl_setopt($ch, CURLOPT_POST, 1);
                     curl_setopt($ch, CURLOPT_USERPWD, $zamzarApiKey . ':');
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-                        'source_file' => $tmpDocx,
+                    
+                    // Загружаем файл через multipart/form-data
+                    $postFields = [
+                        'source_file' => new \CURLFile($tmpDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', $filename.'.docx'),
                         'target_format' => 'pdf'
-                    ]));
+                    ];
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
                     
                     $response = curl_exec($ch);
                     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
