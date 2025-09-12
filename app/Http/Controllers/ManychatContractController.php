@@ -160,13 +160,11 @@ class ManychatContractController extends Controller
                 $tpl->setValue($k, $cleanValue);
             }
             
-            $tmpDocx = storage_path('app/'.$docxRel);
-            @mkdir(dirname($tmpDocx), 0775, true);
+            $outputPath = Storage::disk('public')->path($docxRel);
+            @mkdir(dirname($outputPath), 0775, true);
             
             // Сохраняем DOCX
-            $tpl->saveAs($tmpDocx);
-            Storage::disk('public')->put($docxRel, file_get_contents($tmpDocx));
-            @unlink($tmpDocx);
+            $tpl->saveAs($outputPath);
             
             Log::info('DOCX generated synchronously', ['file' => $docxRel]);
             
@@ -182,7 +180,7 @@ class ManychatContractController extends Controller
     private function convertToPdf($docxRel, $pdfRel)
     {
         $apiKey = '4bb76644955076ff4def01f10b50e2ad7c0e4b00';
-        $tmpDocx = storage_path('app/public/'.$docxRel);
+        $tmpDocx = Storage::disk('public')->path($docxRel);
         
         // Загружаем файл на Zamzar
         $ch = curl_init();
@@ -239,6 +237,7 @@ class ManychatContractController extends Controller
                     if ($pdfContent) {
                         // Сохраняем PDF
                         Storage::disk('public')->put($pdfRel, $pdfContent);
+                        @unlink($tmpDocx); // Удаляем временный DOCX
                         return;
                     }
                 }
