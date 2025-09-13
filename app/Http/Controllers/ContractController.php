@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use PhpOffice\PhpWord\TemplateProcessor;
 use App\Jobs\GenerateContractJob;
-use Zamzar\Zamzar;
+use Zamzar\ZamzarClient;
 
 class ContractController extends Controller
 {
@@ -222,23 +222,12 @@ class ContractController extends Controller
     private function convertToPdfAsync($docxPath, $filename)
     {
         try {
-            // Используем тестовый API ключ Zamzar
-            $zamzar = new Zamzar('test_key_123456789');
+            // Используем реальный API ключ Zamzar
+            $zamzar = new ZamzarClient('4bb76644955076ff4def01f10b50e2ad7c0e4b00');
             
-            // Загружаем файл в Zamzar
-            $sourceFile = $zamzar->files->upload([
-                'name' => $filename . '.docx',
-                'content' => file_get_contents($docxPath)
-            ]);
-            
-            Log::info('File uploaded to Zamzar', [
-                'file_id' => $sourceFile->getId(),
-                'filename' => $filename
-            ]);
-            
-            // Запускаем конвертацию
+            // Запускаем конвертацию напрямую с локальным файлом
             $job = $zamzar->jobs->create([
-                'source_file' => $sourceFile->getId(),
+                'source_file' => $docxPath,
                 'target_format' => 'pdf'
             ]);
             
@@ -250,7 +239,7 @@ class ContractController extends Controller
             // Сохраняем информацию о задаче
             $jobData = [
                 'job_id' => $job->getId(),
-                'source_file_id' => $sourceFile->getId(),
+                'source_file_path' => $docxPath,
                 'filename' => $filename,
                 'status' => 'processing',
                 'created_at' => now()->toISOString()
@@ -309,7 +298,7 @@ class ContractController extends Controller
             
             if ($status === 'successful') {
                 // Скачиваем PDF файл
-                $zamzar = new Zamzar('test_key_123456789');
+                $zamzar = new ZamzarClient('4bb76644955076ff4def01f10b50e2ad7c0e4b00');
                 $job = $zamzar->jobs->get($jobId);
                 $targetFile = $job->getTargetFiles()[0];
                 
