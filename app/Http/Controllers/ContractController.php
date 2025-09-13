@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use PhpOffice\PhpWord\TemplateProcessor;
 use App\Jobs\GenerateContractJob;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ContractController extends Controller
 {
@@ -133,7 +134,7 @@ class ContractController extends Controller
             $tpl->saveAs($tmpDocx);
             
             // Генерируем PDF синхронно
-            $pdfPath = $this->generatePdf($tmpDocx, $filename);
+            $pdfPath = $this->generatePdf($tmpDocx, $filename, $data);
             
             Log::info('Contract generated successfully', [
                 'filename' => $filename,
@@ -226,26 +227,128 @@ class ContractController extends Controller
         }
     }
 
-    private function generatePdf($docxPath, $filename)
+    private function generatePdf($docxPath, $filename, $data = [])
     {
-        // Используем Pandoc для конвертации DOCX в PDF
+        // Используем DomPDF для генерации PDF
         $pdfPath = storage_path('app/public/contracts/' . $filename . '.pdf');
         
-        $command = "pandoc '{$docxPath}' -o '{$pdfPath}' --pdf-engine=wkhtmltopdf";
-        
-        $output = [];
-        $returnCode = 0;
-        exec($command, $output, $returnCode);
-        
-        if ($returnCode !== 0) {
-            Log::error('PDF generation failed', [
-                'command' => $command,
-                'output' => $output,
-                'return_code' => $returnCode
+        try {
+            // Создаем простой HTML контент для PDF
+            $html = $this->generateHtmlFromDocx($docxPath, $data);
+            
+            // Генерируем PDF
+            $pdf = Pdf::loadHTML($html);
+            $pdf->setPaper('A4', 'portrait');
+            $pdf->save($pdfPath);
+            
+            Log::info('PDF generated successfully', [
+                'pdf_path' => $pdfPath,
+                'filename' => $filename
             ]);
-            throw new \Exception('Ошибка генерации PDF: ' . implode(' ', $output));
+            
+            return $pdfPath;
+            
+        } catch (\Exception $e) {
+            Log::error('PDF generation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new \Exception('Ошибка генерации PDF: ' . $e->getMessage());
         }
+    }
+    
+    private function generateHtmlFromDocx($docxPath, $data = [])
+    {
+        // Простой HTML шаблон для договора
+        $html = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Договор</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .header { text-align: center; margin-bottom: 30px; }
+                .section { margin-bottom: 20px; }
+                .field { margin-bottom: 10px; }
+                .label { font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>ДОГОВОР</h1>
+            </div>
+            
+            <div class="section">
+                <h2>12. Адреса, реквизиты и подписи сторон</h2>
+                
+                <div style="display: flex; justify-content: space-between;">
+                    <div style="width: 48%;">
+                        <h3>Клиент:</h3>
+                        <div class="field">
+                            <span class="label">ФИО:</span> ' . ($data['client_full_name'] ?? '') . '
+                        </div>
+                        <div class="field">
+                            <span class="label">Паспорт РФ:</span> ' . ($data['passport_full'] ?? '') . '
+                        </div>
+                        <div class="field">
+                            <span class="label">ИНН:</span> ' . ($data['inn'] ?? '') . '
+                        </div>
+                        <div class="field">
+                            <span class="label">Адрес:</span> ' . ($data['client_address'] ?? '') . '
+                        </div>
+                        <div class="field">
+                            <span class="label">Банк:</span> ' . ($data['bank_name'] ?? '') . '
+                        </div>
+                        <div class="field">
+                            <span class="label">P/c:</span> ' . ($data['bank_account'] ?? '') . '
+                        </div>
+                        <div class="field">
+                            <span class="label">БИК:</span> ' . ($data['bank_bik'] ?? '') . '
+                        </div>
+                        <div class="field">
+                            <span class="label">SWIFT:</span> ' . ($data['bank_swift'] ?? '') . '
+                        </div>
+                    </div>
+                    
+                    <div style="width: 48%;">
+                        <h3>Оператор:</h3>
+                        <div class="field">
+                            <span class="label">ОсОО "ВТП-Технолоджи"</span>
+                        </div>
+                        <div class="field">
+                            <span class="label">Регистрационный номер:</span> 305867-3301-000
+                        </div>
+                        <div class="field">
+                            <span class="label">ИНН:</span> 01007202410391
+                        </div>
+                        <div class="field">
+                            <span class="label">ОКПО:</span> 33112978
+                        </div>
+                        <div class="field">
+                            <span class="label">Юридический адрес:</span> Кыргызская Республика, Бишкек, Первомайский район, пр. Чынгыз Айтматова, 4, Блок И., 54
+                        </div>
+                        <div class="field">
+                            <span class="label">Фактический адрес:</span> Кыргызская Республика, Бишкек, Первомайский район, пр. Чынгыз Айтматова, 4, Блок И., 54
+                        </div>
+                        <div class="field">
+                            <span class="label">Банки:</span> ОАО «ФинансКредитБанк »
+                        </div>
+                        <div class="field">
+                            <span class="label">P/c:</span> 1340000090402674
+                        </div>
+                        <div class="field">
+                            <span class="label">БИК:</span> 134001
+                        </div>
+                        <div class="field">
+                            <span class="label">SWIFT:</span> FIKBKG22
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>';
         
-        return $pdfPath;
+        return $html;
     }
 }
