@@ -309,8 +309,28 @@ class ContractController extends Controller
         $pdfPath = storage_path('app/contracts/' . $filename . '.pdf');
         
         // Создаем директории если не существуют
-        @mkdir(dirname($pdfPath), 0775, true);
-        @mkdir(storage_path('app/temp'), 0775, true);
+        $contractsDir = dirname($pdfPath);
+        $tempDir = storage_path('app/temp');
+        
+        if (!is_dir($contractsDir)) {
+            if (!mkdir($contractsDir, 0775, true)) {
+                Log::error('Failed to create contracts directory', ['path' => $contractsDir]);
+                throw new \Exception('Не удалось создать директорию для PDF файлов');
+            }
+        }
+        
+        if (!is_dir($tempDir)) {
+            if (!mkdir($tempDir, 0775, true)) {
+                Log::error('Failed to create temp directory', ['path' => $tempDir]);
+                throw new \Exception('Не удалось создать временную директорию');
+            }
+        }
+        
+        // Проверяем, что можем записать в директорию
+        if (!is_writable($contractsDir)) {
+            Log::error('Contracts directory is not writable', ['path' => $contractsDir]);
+            throw new \Exception('Нет прав на запись в директорию PDF файлов');
+        }
         
         try {
             // Создаем HTML контент для PDF
@@ -327,7 +347,7 @@ class ContractController extends Controller
                 'margin_bottom' => 16,
                 'margin_header' => 9,
                 'margin_footer' => 9,
-                'tempDir' => storage_path('app/temp')
+                'tempDir' => sys_get_temp_dir() // Используем системную временную директорию
             ]);
             
             // Устанавливаем шрифт для кириллицы
