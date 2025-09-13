@@ -51,16 +51,16 @@ class ContractController extends Controller
         if (empty($data['contract_number'])) {
             $today = now()->format('Ymd');
             
-            // Используем файловый счетчик как fallback
-            $counterFile = storage_path('app/contract_counter.txt');
+            // Используем файловый счетчик с датой для уникальности по дням
+            $counterFile = storage_path('app/contract_counter_' . $today . '.txt');
             $counter = 1;
             
             if (file_exists($counterFile)) {
                 $counter = (int)file_get_contents($counterFile) + 1;
             }
             
-            // Если счетчик превысил 1000, сбрасываем на 1
-            if ($counter > 1000) {
+            // Если счетчик превысил 999, сбрасываем на 1
+            if ($counter > 999) {
                 $counter = 1;
             }
             
