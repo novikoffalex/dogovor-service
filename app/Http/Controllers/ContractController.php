@@ -308,6 +308,10 @@ class ContractController extends Controller
         // Используем mPDF для генерации PDF
         $pdfPath = storage_path('app/contracts/' . $filename . '.pdf');
         
+        // Создаем директории если не существуют
+        @mkdir(dirname($pdfPath), 0775, true);
+        @mkdir(storage_path('app/temp'), 0775, true);
+        
         try {
             // Создаем HTML контент для PDF
             $html = $this->generateHtmlFromDocx($docxPath, $data);
