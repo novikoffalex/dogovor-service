@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use PhpOffice\PhpWord\TemplateProcessor;
 use App\Jobs\GenerateContractJob;
+use Zamzar\Zamzar;
 
 class ContractController extends Controller
 {
@@ -128,7 +129,10 @@ class ContractController extends Controller
                 'docx_path' => $docxPath
             ]);
             
-            // Возвращаем JSON с ссылкой на DOCX файл
+            // Запускаем PDF конвертацию через Zamzar в фоне
+            $this->convertToPdfAsync($tmpDocx, $filename);
+            
+            // Возвращаем JSON с ссылкой на DOCX файл (PDF будет готов позже)
             $contractUrl = url('api/contract/download/'.$filename.'.docx');
             
             // Временно отключаем кеширование для отладки
@@ -212,6 +216,145 @@ class ContractController extends Controller
                 'error' => 'upload_failed',
                 'message' => 'Ошибка при загрузке файла: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    private function convertToPdfAsync($docxPath, $filename)
+    {
+        try {
+            // Используем тестовый API ключ Zamzar
+            $zamzar = new Zamzar('test_key_123456789');
+            
+            // Загружаем файл в Zamzar
+            $sourceFile = $zamzar->files->upload([
+                'name' => $filename . '.docx',
+                'content' => file_get_contents($docxPath)
+            ]);
+            
+            Log::info('File uploaded to Zamzar', [
+                'file_id' => $sourceFile->getId(),
+                'filename' => $filename
+            ]);
+            
+            // Запускаем конвертацию
+            $job = $zamzar->jobs->create([
+                'source_file' => $sourceFile->getId(),
+                'target_format' => 'pdf'
+            ]);
+            
+            Log::info('Zamzar conversion job started', [
+                'job_id' => $job->getId(),
+                'filename' => $filename
+            ]);
+            
+            // Сохраняем информацию о задаче
+            $jobData = [
+                'job_id' => $job->getId(),
+                'source_file_id' => $sourceFile->getId(),
+                'filename' => $filename,
+                'status' => 'processing',
+                'created_at' => now()->toISOString()
+            ];
+            
+            // Сохраняем в файл вместо кеша
+            $jobFile = storage_path('app/zamzar_jobs.json');
+            $jobs = [];
+            if (file_exists($jobFile)) {
+                $jobs = json_decode(file_get_contents($jobFile), true) ?: [];
+            }
+            $jobs[$filename] = $jobData;
+            file_put_contents($jobFile, json_encode($jobs, JSON_PRETTY_PRINT));
+            
+        } catch (\Exception $e) {
+            Log::error('Zamzar conversion failed', [
+                'filename' => $filename,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    public function zamzarWebhook(Request $request)
+    {
+        try {
+            $data = $request->all();
+            
+            Log::info('Zamzar webhook received', $data);
+            
+            $jobId = $data['id'] ?? null;
+            $status = $data['status'] ?? null;
+            
+            if (!$jobId || !$status) {
+                return response()->json(['error' => 'Invalid webhook data'], 400);
+            }
+            
+            // Находим задачу по job_id
+            $jobFile = storage_path('app/zamzar_jobs.json');
+            $jobs = [];
+            if (file_exists($jobFile)) {
+                $jobs = json_decode(file_get_contents($jobFile), true) ?: [];
+            }
+            
+            $jobKey = null;
+            foreach ($jobs as $key => $job) {
+                if ($job['job_id'] == $jobId) {
+                    $jobKey = $key;
+                    break;
+                }
+            }
+            
+            if (!$jobKey) {
+                Log::warning('Zamzar job not found', ['job_id' => $jobId]);
+                return response()->json(['error' => 'Job not found'], 404);
+            }
+            
+            if ($status === 'successful') {
+                // Скачиваем PDF файл
+                $zamzar = new Zamzar('test_key_123456789');
+                $job = $zamzar->jobs->get($jobId);
+                $targetFile = $job->getTargetFiles()[0];
+                
+                // Скачиваем PDF
+                $pdfContent = $zamzar->files->download($targetFile->getId());
+                
+                // Сохраняем PDF локально
+                $pdfPath = storage_path('app/contracts/' . $jobs[$jobKey]['filename'] . '.pdf');
+                @mkdir(dirname($pdfPath), 0775, true);
+                file_put_contents($pdfPath, $pdfContent);
+                
+                // Обновляем статус
+                $jobs[$jobKey]['status'] = 'completed';
+                $jobs[$jobKey]['pdf_path'] = $pdfPath;
+                $jobs[$jobKey]['completed_at'] = now()->toISOString();
+                
+                file_put_contents($jobFile, json_encode($jobs, JSON_PRETTY_PRINT));
+                
+                Log::info('PDF conversion completed', [
+                    'filename' => $jobs[$jobKey]['filename'],
+                    'pdf_path' => $pdfPath
+                ]);
+                
+            } elseif ($status === 'failed') {
+                // Обновляем статус на failed
+                $jobs[$jobKey]['status'] = 'failed';
+                $jobs[$jobKey]['failed_at'] = now()->toISOString();
+                
+                file_put_contents($jobFile, json_encode($jobs, JSON_PRETTY_PRINT));
+                
+                Log::error('PDF conversion failed', [
+                    'filename' => $jobs[$jobKey]['filename'],
+                    'job_id' => $jobId
+                ]);
+            }
+            
+            return response()->json(['success' => true]);
+            
+        } catch (\Exception $e) {
+            Log::error('Zamzar webhook error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json(['error' => 'Webhook processing failed'], 500);
         }
     }
 }

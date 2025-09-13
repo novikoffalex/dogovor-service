@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8135f7b8759ee2780d6bec7fc837a400",
+    "content-hash": "e2f4c4a3543ef90d89f1294eb6e91fa3",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -7799,6 +7799,57 @@
                 "source": "https://github.com/webmozarts/assert/tree/1.11.0"
             },
             "time": "2022-06-03T18:03:27+00:00"
+        },
+        {
+            "name": "zamzar/zamzar-php",
+            "version": "v2.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/zamzar/zamzar-php.git",
+                "reference": "7eb8848a690a97173d56148e1f18e619d4c116a8"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/zamzar/zamzar-php/zipball/7eb8848a690a97173d56148e1f18e619d4c116a8",
+                "reference": "7eb8848a690a97173d56148e1f18e619d4c116a8",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "guzzlehttp/guzzle": "^7.3",
+                "php": ">=7.2.34"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^8.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Zamzar\\": "lib/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Zamzar",
+                    "homepage": "https://github.com/zamzar/zamzar-php"
+                }
+            ],
+            "description": "Zamzar PHP Library",
+            "homepage": "https://www.zamzar.com/",
+            "keywords": [
+                "api",
+                "file conversion",
+                "zamzar"
+            ],
+            "support": {
+                "issues": "https://github.com/zamzar/zamzar-php/issues",
+                "source": "https://github.com/zamzar/zamzar-php/tree/v2.2.0"
+            },
+            "time": "2025-07-11T10:25:13+00:00"
         }
     ],
     "packages-dev": [
