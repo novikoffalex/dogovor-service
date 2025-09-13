@@ -106,6 +106,9 @@ class ManychatContractController extends Controller
             foreach ($data as $key => $value) {
                 $tpl->setValue($key, $value);
             }
+            
+            // Дополнительные плейсхолдеры для шаблона
+            $tpl->setValue('cuf_13601589', $data['client_address']);
 
             $safeName = Str::slug($data['client_full_name'], '_');
             if ($safeName === '') {
