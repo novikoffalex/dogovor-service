@@ -52,8 +52,17 @@ class ManychatContractController extends Controller
         // Генерируем номер договора если не передан
         if (empty($data['contract_number'])) {
             $today = now()->format('Ymd');
-            $cacheKey = "contract_counter_{$today}";
-            $counter = Cache::store('database')->increment($cacheKey, 1);
+            $cacheKey = "contract_counter_global";
+            
+            // Используем Laravel KV Store для глобального счетчика
+            $counter = Cache::increment($cacheKey, 1);
+            
+            // Если счетчик превысил 1000, сбрасываем на 1
+            if ($counter > 1000) {
+                Cache::put($cacheKey, 1);
+                $counter = 1;
+            }
+            
             $data['contract_number'] = $today . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT);
         }
 
