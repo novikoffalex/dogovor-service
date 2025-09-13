@@ -127,9 +127,9 @@ class ContractController extends Controller
             $filename = $safeName.'_'.$data['contract_number'];
             $docxRel = 'contracts/'.$filename.'.docx';
             
-            // Сохраняем файл в public storage для скачивания
-            $publicPath = 'contracts/'.$filename.'.docx';
-            $tmpDocx = storage_path('app/public/'.$publicPath);
+            // Сохраняем файл в storage для скачивания
+            $docxPath = 'contracts/'.$filename.'.docx';
+            $tmpDocx = storage_path('app/'.$docxPath);
             @mkdir(dirname($tmpDocx), 0775, true);
             $tpl->saveAs($tmpDocx);
             
@@ -138,7 +138,7 @@ class ContractController extends Controller
             
             Log::info('Contract generated successfully', [
                 'filename' => $filename,
-                'public_path' => $publicPath,
+                'docx_path' => $docxPath,
                 'pdf_path' => $pdfPath
             ]);
             
@@ -176,7 +176,7 @@ class ContractController extends Controller
 
     public function download($filename)
     {
-        $pdfPath = storage_path('app/public/contracts/' . $filename);
+        $pdfPath = storage_path('app/contracts/' . $filename);
         
         if (file_exists($pdfPath)) {
             return response()->download($pdfPath, $filename, [
@@ -230,7 +230,7 @@ class ContractController extends Controller
     private function generatePdf($docxPath, $filename, $data = [])
     {
         // Используем mPDF для генерации PDF
-        $pdfPath = storage_path('app/public/contracts/' . $filename . '.pdf');
+        $pdfPath = storage_path('app/contracts/' . $filename . '.pdf');
         
         try {
             // Создаем HTML контент для PDF
