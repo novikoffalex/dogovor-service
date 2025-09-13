@@ -201,16 +201,24 @@
                     this.success = false;
 
                     try {
+                        console.log('Sending request with data:', this.form);
                         const response = await fetch('/api/contract/generate', {
                             method: 'POST',
                             headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                'Content-Type': 'application/json'
                             },
                             body: JSON.stringify(this.form)
                         });
 
+                        console.log('Response status:', response.status);
+                        console.log('Response headers:', response.headers);
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
                         const data = await response.json();
+                        console.log('Response data:', data);
 
                         if (data.success) {
                             this.contractData = data;
@@ -220,8 +228,9 @@
                             this.errorMessage = data.message || 'Произошла ошибка при формировании договора';
                         }
                     } catch (err) {
+                        console.error('Request error:', err);
                         this.error = true;
-                        this.errorMessage = 'Ошибка сети. Попробуйте еще раз.';
+                        this.errorMessage = 'Ошибка сети: ' + err.message;
                     } finally {
                         this.loading = false;
                     }
@@ -238,9 +247,6 @@
                     try {
                         const response = await fetch('/api/contract/upload-signed', {
                             method: 'POST',
-                            headers: {
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                            },
                             body: formData
                         });
 
