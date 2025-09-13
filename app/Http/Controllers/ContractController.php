@@ -41,39 +41,30 @@ class ContractController extends Controller
             }
         }
 
-        // Проверяем, не существует ли уже договор для этого клиента
-        $clientHash = md5($data['client_full_name'] . $data['inn'] . $data['passport_full']);
-        $existingContractKey = "contract_exists_{$clientHash}";
-        
-        if (Cache::has($existingContractKey)) {
-            $existingData = Cache::get($existingContractKey);
-            Log::info('Returning existing contract for client', [
-                'client_hash' => $clientHash,
-                'contract_number' => $existingData['contract_number']
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'contract_url' => $existingData['contract_url'],
-                'filename' => $existingData['filename'],
-                'contract_number' => $existingData['contract_number'],
-                'cached' => true
-            ]);
-        }
+        // Временно отключаем проверку кеша для отладки
+        // $clientHash = md5($data['client_full_name'] . $data['inn'] . $data['passport_full']);
+        // $existingContractKey = "contract_exists_{$clientHash}";
 
         // Генерируем номер договора если не передан
         if (empty($data['contract_number'])) {
             $today = now()->format('Ymd');
-            $cacheKey = "contract_counter_global";
             
-            // Используем Laravel KV Store для глобального счетчика
-            $counter = Cache::increment($cacheKey, 1);
+            // Используем файловый счетчик как fallback
+            $counterFile = storage_path('app/contract_counter.txt');
+            $counter = 1;
+            
+            if (file_exists($counterFile)) {
+                $counter = (int)file_get_contents($counterFile) + 1;
+            }
             
             // Если счетчик превысил 1000, сбрасываем на 1
             if ($counter > 1000) {
-                Cache::put($cacheKey, 1);
                 $counter = 1;
             }
+            
+            // Сохраняем счетчик в файл
+            @mkdir(dirname($counterFile), 0775, true);
+            file_put_contents($counterFile, $counter);
             
             $data['contract_number'] = $today . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT);
         }
@@ -140,14 +131,14 @@ class ContractController extends Controller
             // Возвращаем JSON с ссылкой на DOCX файл
             $contractUrl = url('api/contract/download/'.$filename.'.docx');
             
-            // Сохраняем информацию о договоре в кеш для защиты от повторных запросов
-            $contractData = [
-                'contract_url' => $contractUrl,
-                'filename' => $filename.'.docx',
-                'contract_number' => $data['contract_number'],
-                'created_at' => now()->toISOString()
-            ];
-            Cache::put($existingContractKey, $contractData, now()->addDays(30)); // Кеш на 30 дней
+            // Временно отключаем кеширование для отладки
+            // $contractData = [
+            //     'contract_url' => $contractUrl,
+            //     'filename' => $filename.'.docx',
+            //     'contract_number' => $data['contract_number'],
+            //     'created_at' => now()->toISOString()
+            // ];
+            // Cache::put($existingContractKey, $contractData, now()->addDays(30));
             
             return response()->json([
                 'success' => true,
