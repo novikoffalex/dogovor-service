@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use PhpOffice\PhpWord\TemplateProcessor;
 use App\Jobs\GenerateContractJob;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Mpdf\Mpdf;
 
 class ContractController extends Controller
 {
@@ -229,19 +229,37 @@ class ContractController extends Controller
 
     private function generatePdf($docxPath, $filename, $data = [])
     {
-        // Используем DomPDF для генерации PDF
+        // Используем mPDF для генерации PDF
         $pdfPath = storage_path('app/public/contracts/' . $filename . '.pdf');
         
         try {
-            // Создаем простой HTML контент для PDF
+            // Создаем HTML контент для PDF
             $html = $this->generateHtmlFromDocx($docxPath, $data);
             
-            // Генерируем PDF
-            $pdf = Pdf::loadHTML($html);
-            $pdf->setPaper('A4', 'portrait');
-            $pdf->save($pdfPath);
+            // Настройки mPDF для кириллицы
+            $mpdf = new Mpdf([
+                'mode' => 'utf-8',
+                'format' => 'A4',
+                'orientation' => 'P',
+                'margin_left' => 15,
+                'margin_right' => 15,
+                'margin_top' => 16,
+                'margin_bottom' => 16,
+                'margin_header' => 9,
+                'margin_footer' => 9,
+                'tempDir' => storage_path('app/temp')
+            ]);
             
-            Log::info('PDF generated successfully', [
+            // Устанавливаем шрифт для кириллицы
+            $mpdf->SetFont('DejaVuSans');
+            
+            // Загружаем HTML
+            $mpdf->WriteHTML($html);
+            
+            // Сохраняем PDF
+            $mpdf->Output($pdfPath, 'F');
+            
+            Log::info('PDF generated successfully with mPDF', [
                 'pdf_path' => $pdfPath,
                 'filename' => $filename
             ]);
@@ -259,7 +277,7 @@ class ContractController extends Controller
     
     private function generateHtmlFromDocx($docxPath, $data = [])
     {
-        // Простой HTML шаблон для договора
+        // HTML шаблон для договора с улучшенным форматированием
         $html = '
         <!DOCTYPE html>
         <html>
@@ -267,11 +285,59 @@ class ContractController extends Controller
             <meta charset="UTF-8">
             <title>Договор</title>
             <style>
-                body { font-family: Arial, sans-serif; margin: 20px; }
-                .header { text-align: center; margin-bottom: 30px; }
-                .section { margin-bottom: 20px; }
-                .field { margin-bottom: 10px; }
-                .label { font-weight: bold; }
+                body { 
+                    font-family: DejaVu Sans, Arial, sans-serif; 
+                    margin: 0; 
+                    padding: 20px; 
+                    font-size: 12px;
+                    line-height: 1.4;
+                }
+                .header { 
+                    text-align: center; 
+                    margin-bottom: 30px; 
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+                .section { 
+                    margin-bottom: 20px; 
+                }
+                .section h2 {
+                    font-size: 14px;
+                    font-weight: bold;
+                    margin-bottom: 15px;
+                    text-decoration: underline;
+                }
+                .columns {
+                    display: table;
+                    width: 100%;
+                }
+                .column {
+                    display: table-cell;
+                    width: 48%;
+                    vertical-align: top;
+                    padding-right: 20px;
+                }
+                .column:last-child {
+                    padding-right: 0;
+                }
+                .field { 
+                    margin-bottom: 8px; 
+                    font-size: 11px;
+                }
+                .label { 
+                    font-weight: bold; 
+                    display: inline-block;
+                    min-width: 80px;
+                }
+                .value {
+                    display: inline-block;
+                }
+                h3 {
+                    font-size: 13px;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                    text-decoration: underline;
+                }
             </style>
         </head>
         <body>
@@ -282,66 +348,84 @@ class ContractController extends Controller
             <div class="section">
                 <h2>12. Адреса, реквизиты и подписи сторон</h2>
                 
-                <div style="display: flex; justify-content: space-between;">
-                    <div style="width: 48%;">
+                <div class="columns">
+                    <div class="column">
                         <h3>Клиент:</h3>
                         <div class="field">
-                            <span class="label">ФИО:</span> ' . ($data['client_full_name'] ?? '') . '
+                            <span class="label">ФИО:</span>
+                            <span class="value">' . htmlspecialchars($data['client_full_name'] ?? '') . '</span>
                         </div>
                         <div class="field">
-                            <span class="label">Паспорт РФ:</span> ' . ($data['passport_full'] ?? '') . '
+                            <span class="label">Паспорт РФ:</span>
+                            <span class="value">' . htmlspecialchars($data['passport_full'] ?? '') . '</span>
                         </div>
                         <div class="field">
-                            <span class="label">ИНН:</span> ' . ($data['inn'] ?? '') . '
+                            <span class="label">ИНН:</span>
+                            <span class="value">' . htmlspecialchars($data['inn'] ?? '') . '</span>
                         </div>
                         <div class="field">
-                            <span class="label">Адрес:</span> ' . ($data['client_address'] ?? '') . '
+                            <span class="label">Адрес:</span>
+                            <span class="value">' . htmlspecialchars($data['client_address'] ?? '') . '</span>
                         </div>
                         <div class="field">
-                            <span class="label">Банк:</span> ' . ($data['bank_name'] ?? '') . '
+                            <span class="label">Банк:</span>
+                            <span class="value">' . htmlspecialchars($data['bank_name'] ?? '') . '</span>
                         </div>
                         <div class="field">
-                            <span class="label">P/c:</span> ' . ($data['bank_account'] ?? '') . '
+                            <span class="label">P/c:</span>
+                            <span class="value">' . htmlspecialchars($data['bank_account'] ?? '') . '</span>
                         </div>
                         <div class="field">
-                            <span class="label">БИК:</span> ' . ($data['bank_bik'] ?? '') . '
+                            <span class="label">БИК:</span>
+                            <span class="value">' . htmlspecialchars($data['bank_bik'] ?? '') . '</span>
                         </div>
                         <div class="field">
-                            <span class="label">SWIFT:</span> ' . ($data['bank_swift'] ?? '') . '
+                            <span class="label">SWIFT:</span>
+                            <span class="value">' . htmlspecialchars($data['bank_swift'] ?? '') . '</span>
                         </div>
                     </div>
                     
-                    <div style="width: 48%;">
+                    <div class="column">
                         <h3>Оператор:</h3>
                         <div class="field">
-                            <span class="label">ОсОО "ВТП-Технолоджи"</span>
+                            <span class="label">Название:</span>
+                            <span class="value">ОсОО "ВТП-Технолоджи"</span>
                         </div>
                         <div class="field">
-                            <span class="label">Регистрационный номер:</span> 305867-3301-000
+                            <span class="label">Рег. номер:</span>
+                            <span class="value">305867-3301-000</span>
                         </div>
                         <div class="field">
-                            <span class="label">ИНН:</span> 01007202410391
+                            <span class="label">ИНН:</span>
+                            <span class="value">01007202410391</span>
                         </div>
                         <div class="field">
-                            <span class="label">ОКПО:</span> 33112978
+                            <span class="label">ОКПО:</span>
+                            <span class="value">33112978</span>
                         </div>
                         <div class="field">
-                            <span class="label">Юридический адрес:</span> Кыргызская Республика, Бишкек, Первомайский район, пр. Чынгыз Айтматова, 4, Блок И., 54
+                            <span class="label">Юр. адрес:</span>
+                            <span class="value">Кыргызская Республика, Бишкек, Первомайский район, пр. Чынгыз Айтматова, 4, Блок И., 54</span>
                         </div>
                         <div class="field">
-                            <span class="label">Фактический адрес:</span> Кыргызская Республика, Бишкек, Первомайский район, пр. Чынгыз Айтматова, 4, Блок И., 54
+                            <span class="label">Факт. адрес:</span>
+                            <span class="value">Кыргызская Республика, Бишкек, Первомайский район, пр. Чынгыз Айтматова, 4, Блок И., 54</span>
                         </div>
                         <div class="field">
-                            <span class="label">Банки:</span> ОАО «ФинансКредитБанк »
+                            <span class="label">Банк:</span>
+                            <span class="value">ОАО «ФинансКредитБанк»</span>
                         </div>
                         <div class="field">
-                            <span class="label">P/c:</span> 1340000090402674
+                            <span class="label">P/c:</span>
+                            <span class="value">1340000090402674</span>
                         </div>
                         <div class="field">
-                            <span class="label">БИК:</span> 134001
+                            <span class="label">БИК:</span>
+                            <span class="value">134001</span>
                         </div>
                         <div class="field">
-                            <span class="label">SWIFT:</span> FIKBKG22
+                            <span class="label">SWIFT:</span>
+                            <span class="value">FIKBKG22</span>
                         </div>
                     </div>
                 </div>
