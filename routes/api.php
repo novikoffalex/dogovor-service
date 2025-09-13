@@ -14,3 +14,5 @@ Route::post('/contract/generate', [ContractController::class, 'generate'])
     ->withoutMiddleware([\Illuminate\Session\Middleware\StartSession::class]);
 
 Route::get('/contract/download/{filename}', [ContractController::class, 'download']);
+Route::get('/contract/download-pdf/{filename}', [ContractController::class, 'downloadPdf']);
+Route::get('/contract/check-pdf-status/{filename}', [ContractController::class, 'checkPdfStatus']);

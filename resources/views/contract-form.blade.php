@@ -124,9 +124,13 @@
                             <div class="mt-2 text-sm text-green-700">
                                 <p>Номер договора: <span x-text="contractData.contract_number"></span></p>
                                 <div class="mt-3 flex space-x-3">
-                                    <a :href="contractData.contract_url" 
-                                       class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">
-                                        Скачать PDF
+                                    <a :href="pdfDownloadUrl" 
+                                       :class="pdfReady ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'"
+                                       class="text-white px-4 py-2 rounded-md text-sm"
+                                       :disabled="!pdfReady">
+                                        <span x-show="pdfReady">Скачать PDF</span>
+                                        <span x-show="!pdfReady && !pdfChecking">PDF готовится...</span>
+                                        <span x-show="pdfChecking">Проверка PDF...</span>
                                     </a>
                                     <button @click="showUploadForm = true" 
                                             class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">
@@ -205,6 +209,9 @@
                 showUploadForm: false,
                 contractData: {},
                 errorMessage: '',
+                pdfReady: false,
+                pdfChecking: false,
+                pdfDownloadUrl: '',
 
                 async submitForm() {
                     this.loading = true;
@@ -234,6 +241,12 @@
                         if (data.success) {
                             this.contractData = data;
                             this.success = true;
+                            this.pdfDownloadUrl = data.contract_url; // По умолчанию DOCX
+                            
+                            // Начинаем проверку PDF статуса
+                            if (data.pdf_status_url) {
+                                this.checkPdfStatus(data.pdf_status_url);
+                            }
                         } else {
                             this.error = true;
                             this.errorMessage = data.message || 'Произошла ошибка при формировании договора';
@@ -244,6 +257,36 @@
                         this.errorMessage = 'Ошибка сети: ' + err.message;
                     } finally {
                         this.loading = false;
+                    }
+                },
+
+                async checkPdfStatus(statusUrl) {
+                    this.pdfChecking = true;
+                    
+                    try {
+                        const response = await fetch(statusUrl);
+                        const data = await response.json();
+                        
+                        if (data.status === 'completed' && data.pdf_url) {
+                            this.pdfReady = true;
+                            this.pdfDownloadUrl = data.pdf_url;
+                            console.log('PDF готов:', data.pdf_url);
+                        } else if (data.status === 'processing') {
+                            // Повторяем проверку через 3 секунды
+                            setTimeout(() => {
+                                if (this.success && !this.pdfReady) {
+                                    this.checkPdfStatus(statusUrl);
+                                }
+                            }, 3000);
+                        } else if (data.status === 'failed') {
+                            console.error('PDF конвертация не удалась:', data.error);
+                            this.pdfDownloadUrl = this.contractData.contract_url; // Fallback на DOCX
+                        }
+                    } catch (err) {
+                        console.error('Ошибка проверки PDF статуса:', err);
+                        this.pdfDownloadUrl = this.contractData.contract_url; // Fallback на DOCX
+                    } finally {
+                        this.pdfChecking = false;
                     }
                 },
 

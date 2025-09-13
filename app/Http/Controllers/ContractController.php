@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use PhpOffice\PhpWord\TemplateProcessor;
 use App\Jobs\GenerateContractJob;
 use Zamzar\ZamzarClient;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ContractController extends Controller
 {
@@ -148,7 +149,9 @@ class ContractController extends Controller
                 'success' => true,
                 'contract_url' => $contractUrl,
                 'filename' => $filename.'.docx',
-                'contract_number' => $data['contract_number']
+                'contract_number' => $data['contract_number'],
+                'pdf_status' => 'processing',
+                'pdf_status_url' => url('api/contract/check-pdf-status/' . $filename . '.docx')
             ]);
             
         } catch (\Exception $e) {
@@ -260,6 +263,71 @@ class ContractController extends Controller
                 'error' => $e->getMessage()
             ]);
         }
+    }
+
+    public function checkPdfStatus($filename)
+    {
+        try {
+            // Убираем расширение .docx если есть
+            $baseFilename = str_replace('.docx', '', $filename);
+            
+            $jobFile = storage_path('app/zamzar_jobs.json');
+            $jobs = [];
+            if (file_exists($jobFile)) {
+                $jobs = json_decode(file_get_contents($jobFile), true) ?: [];
+            }
+            
+            if (!isset($jobs[$baseFilename])) {
+                return response()->json([
+                    'status' => 'not_found',
+                    'message' => 'Задача конвертации не найдена'
+                ], 404);
+            }
+            
+            $job = $jobs[$baseFilename];
+            $pdfPath = storage_path('app/contracts/' . $baseFilename . '.pdf');
+            
+            $response = [
+                'status' => $job['status'],
+                'filename' => $baseFilename,
+                'job_id' => $job['job_id'],
+                'created_at' => $job['created_at']
+            ];
+            
+            if ($job['status'] === 'completed' && file_exists($pdfPath)) {
+                $response['pdf_url'] = url('api/contract/download-pdf/' . $baseFilename . '.pdf');
+                $response['completed_at'] = $job['completed_at'] ?? null;
+            } elseif ($job['status'] === 'failed') {
+                $response['failed_at'] = $job['failed_at'] ?? null;
+                $response['error'] = 'Конвертация в PDF не удалась';
+            }
+            
+            return response()->json($response);
+            
+        } catch (\Exception $e) {
+            Log::error('PDF status check failed', [
+                'filename' => $filename,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Ошибка при проверке статуса: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function downloadPdf($filename)
+    {
+        $pdfPath = storage_path('app/contracts/' . $filename);
+        
+        if (file_exists($pdfPath)) {
+            return response()->download($pdfPath, $filename, [
+                'Content-Type' => 'application/pdf'
+            ]);
+        }
+        
+        return response()->json(['error' => 'PDF файл не найден'], 404);
     }
 
     public function zamzarWebhook(Request $request)

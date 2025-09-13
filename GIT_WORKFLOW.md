@@ -76,3 +76,4 @@ git checkout v1.0.0
 # Создать ветку от тега
 git checkout -b hotfix v1.0.0
 ```
+
