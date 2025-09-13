@@ -49,6 +49,26 @@ class ManychatContractController extends Controller
             }
         }
 
+        // Проверяем, не существует ли уже договор для этого клиента
+        $clientHash = md5($data['client_full_name'] . $data['inn'] . $data['passport_full']);
+        $existingContractKey = "contract_exists_{$clientHash}";
+        
+        if (Cache::has($existingContractKey)) {
+            $existingData = Cache::get($existingContractKey);
+            Log::info('Returning existing contract for client', [
+                'client_hash' => $clientHash,
+                'contract_number' => $existingData['contract_number']
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'contract_url' => $existingData['contract_url'],
+                'filename' => $existingData['filename'],
+                'contract_number' => $existingData['contract_number'],
+                'cached' => true
+            ]);
+        }
+
         // Генерируем номер договора если не передан
         if (empty($data['contract_number'])) {
             $today = now()->format('Ymd');
@@ -106,9 +126,6 @@ class ManychatContractController extends Controller
             foreach ($data as $key => $value) {
                 $tpl->setValue($key, $value);
             }
-            
-            // Дополнительные плейсхолдеры для шаблона
-            $tpl->setValue('cuf_13601589', $data['client_address']);
 
             $safeName = Str::slug($data['client_full_name'], '_');
             if ($safeName === '') {
@@ -133,6 +150,15 @@ class ManychatContractController extends Controller
             
             // Возвращаем JSON с ссылкой на API эндпоинт
             $contractUrl = url('api/manychat/contract/docx/'.$filename.'.docx');
+            
+            // Сохраняем информацию о договоре в кеш для защиты от повторных запросов
+            $contractData = [
+                'contract_url' => $contractUrl,
+                'filename' => $filename.'.docx',
+                'contract_number' => $data['contract_number'],
+                'created_at' => now()->toISOString()
+            ];
+            Cache::put($existingContractKey, $contractData, now()->addDays(30)); // Кеш на 30 дней
             
             return response()->json([
                 'success' => true,
