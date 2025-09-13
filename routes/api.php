@@ -15,4 +15,11 @@ Route::post('/contract/generate', [ContractController::class, 'generate'])
 
 Route::get('/contract/download/{filename}', [ContractController::class, 'download']);
 Route::get('/contract/download-pdf/{filename}', [ContractController::class, 'downloadPdf']);
+Route::get('/contract/download-signed/{filename}', [ContractController::class, 'downloadSigned']);
 Route::get('/contract/check-pdf-status/{filename}', [ContractController::class, 'checkPdfStatus']);
+
+// Upload and ManyChat integration
+Route::post('/contract/upload-signed', [ContractController::class, 'uploadSigned'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+Route::post('/contract/send-to-manychat', [ContractController::class, 'sendToManychat'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);

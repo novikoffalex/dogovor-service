@@ -307,7 +307,19 @@
                         const data = await response.json();
 
                         if (data.success) {
-                            alert('Подписанный договор успешно загружен!');
+                            // Показываем информацию о ManyChat
+                            const manychatInfo = `
+                                ✅ Подписанный договор успешно загружен!
+                                
+                                📋 Данные для ManyChat:
+                                Поле: ${data.manychat_field}
+                                Значение: ${data.manychat_value}
+                                
+                                📄 Файл: ${data.filename}
+                                🔗 Ссылка: ${data.download_url}
+                            `;
+                            
+                            alert(manychatInfo);
                             this.showUploadForm = false;
                         } else {
                             this.error = true;

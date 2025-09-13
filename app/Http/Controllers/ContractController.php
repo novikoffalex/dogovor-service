@@ -203,10 +203,16 @@ class ContractController extends Controller
                 'path' => $path
             ]);
             
+            // Генерируем публичную ссылку для ManyChat
+            $downloadUrl = url('api/contract/download-signed/' . $filename);
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Подписанный договор успешно загружен',
-                'filename' => $filename
+                'filename' => $filename,
+                'download_url' => $downloadUrl,
+                'manychat_field' => 'pdf_scan_url',
+                'manychat_value' => $downloadUrl
             ]);
             
         } catch (\Exception $e) {
@@ -328,6 +334,80 @@ class ContractController extends Controller
         }
         
         return response()->json(['error' => 'PDF файл не найден'], 404);
+    }
+
+    public function downloadSigned($filename)
+    {
+        $filePath = storage_path('app/public/signed-contracts/' . $filename);
+        
+        if (file_exists($filePath)) {
+            // Определяем MIME тип по расширению
+            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            $mimeTypes = [
+                'pdf' => 'application/pdf',
+                'jpg' => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'png' => 'image/png'
+            ];
+            
+            $contentType = $mimeTypes[$extension] ?? 'application/octet-stream';
+            
+            return response()->download($filePath, $filename, [
+                'Content-Type' => $contentType
+            ]);
+        }
+        
+        return response()->json(['error' => 'Подписанный договор не найден'], 404);
+    }
+
+    public function sendToManychat(Request $request)
+    {
+        $request->validate([
+            'contract_number' => 'required|string',
+            'signed_file_url' => 'required|url',
+            'manychat_webhook_url' => 'required|url'
+        ]);
+
+        try {
+            $contractNumber = $request->input('contract_number');
+            $signedFileUrl = $request->input('signed_file_url');
+            $webhookUrl = $request->input('manychat_webhook_url');
+            
+            // Данные для отправки в ManyChat
+            $manychatData = [
+                'pdf_scan_url' => $signedFileUrl,
+                'contract_number' => $contractNumber,
+                'uploaded_at' => now()->toISOString(),
+                'status' => 'signed_contract_uploaded'
+            ];
+            
+            // Отправляем данные в ManyChat через webhook
+            $response = \Http::post($webhookUrl, $manychatData);
+            
+            Log::info('Signed contract sent to ManyChat', [
+                'contract_number' => $contractNumber,
+                'signed_file_url' => $signedFileUrl,
+                'manychat_response' => $response->body()
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Подписанный договор отправлен в ManyChat',
+                'contract_number' => $contractNumber,
+                'manychat_data' => $manychatData
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to send signed contract to ManyChat', [
+                'error' => $e->getMessage(),
+                'contract_number' => $request->input('contract_number')
+            ]);
+            
+            return response()->json([
+                'error' => 'manychat_send_failed',
+                'message' => 'Ошибка при отправке в ManyChat: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function zamzarWebhook(Request $request)
