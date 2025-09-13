@@ -272,12 +272,12 @@
                             this.pdfDownloadUrl = data.pdf_url;
                             console.log('PDF готов:', data.pdf_url);
                         } else if (data.status === 'processing') {
-                            // Повторяем проверку через 3 секунды
+                            // Повторяем проверку через 2 секунды
                             setTimeout(() => {
                                 if (this.success && !this.pdfReady) {
                                     this.checkPdfStatus(statusUrl);
                                 }
-                            }, 3000);
+                            }, 2000);
                         } else if (data.status === 'failed') {
                             console.error('PDF конвертация не удалась:', data.error);
                             this.pdfDownloadUrl = this.contractData.contract_url; // Fallback на DOCX

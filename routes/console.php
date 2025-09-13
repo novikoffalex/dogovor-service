@@ -8,5 +8,5 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Schedule Zamzar status checks every 2 minutes
-Schedule::command('zamzar:check-status')->everyTwoMinutes();
+// Schedule Zamzar status checks every 30 seconds
+Schedule::command('zamzar:check-status')->everyThirtySeconds();
