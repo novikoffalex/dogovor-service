@@ -2,10 +2,19 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ManychatContractController;
+use App\Http\Controllers\ContractController;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+// Contract form landing page
+Route::get('/contract', [ContractController::class, 'showForm'])->name('contract.form');
+
+// Contract generation API
+Route::post('/api/contract/generate', [ContractController::class, 'generate']);
+Route::get('/api/contract/download/{filename}', [ContractController::class, 'download']);
+Route::post('/api/contract/upload-signed', [ContractController::class, 'uploadSigned']);
 
 // Diagnostics and fallback if API routes aren't loading
 Route::get('/api/ping', fn () => 'pong from web');
