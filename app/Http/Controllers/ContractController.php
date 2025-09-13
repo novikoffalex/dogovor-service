@@ -17,6 +17,11 @@ class ContractController extends Controller
         return view('contract-form');
     }
 
+    public function showMinimalForm()
+    {
+        return view('contract-minimal');
+    }
+
     public function generate(Request $request)
     {
         $data = $request->validate([
