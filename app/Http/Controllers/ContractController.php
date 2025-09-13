@@ -10,9 +10,24 @@ use Illuminate\Support\Facades\Cache;
 use PhpOffice\PhpWord\TemplateProcessor;
 use App\Jobs\GenerateContractJob;
 use Mpdf\Mpdf;
+use Aws\S3\S3Client;
 
 class ContractController extends Controller
 {
+    private function getS3Client()
+    {
+        return new S3Client([
+            'version' => 'latest',
+            'region' => 'auto',
+            'endpoint' => 'https://367be3a2035528943240074d0096e0cd.r2.cloudflare.com',
+            'credentials' => [
+                'key' => '039d5235dee1cf741dd74bbb3bba9932',
+                'secret' => '9e6dd7c05d36e69a7e6a13b833ef5bf8cf28351',
+            ],
+            'use_path_style_endpoint' => true,
+        ]);
+    }
+
     public function showForm()
     {
         return view('contract-form');
@@ -127,14 +142,54 @@ class ContractController extends Controller
             $filename = $safeName.'_'.$data['contract_number'];
             $docxRel = 'contracts/'.$filename.'.docx';
             
-            // Сохраняем файл в storage для скачивания
+            // Сохраняем файл в S3 storage для Laravel Cloud
             $docxPath = 'contracts/'.$filename.'.docx';
-            $tmpDocx = storage_path('app/'.$docxPath);
+            $tmpDocx = storage_path('app/temp/'.$filename.'.docx');
             @mkdir(dirname($tmpDocx), 0775, true);
             $tpl->saveAs($tmpDocx);
             
             // Генерируем PDF синхронно
             $pdfPath = $this->generatePdf($tmpDocx, $filename, $data);
+            
+            // Пытаемся загрузить файлы в S3, если не получается - используем локальное хранение
+            $pdfS3Path = 'contracts/'.$filename.'.pdf';
+            $contractUrl = url('api/contract/download/'.$filename.'.pdf');
+            
+            try {
+                $s3Client = $this->getS3Client();
+                $bucket = 'fls-9fd6221b-0ca4-45b4-8af8-343326c54146';
+                
+                // Загружаем DOCX
+                $s3Client->putObject([
+                    'Bucket' => $bucket,
+                    'Key' => $docxPath,
+                    'Body' => file_get_contents($tmpDocx),
+                    'ContentType' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                ]);
+                
+                // Загружаем PDF
+                $s3Client->putObject([
+                    'Bucket' => $bucket,
+                    'Key' => $pdfS3Path,
+                    'Body' => file_get_contents($pdfPath),
+                    'ContentType' => 'application/pdf'
+                ]);
+                
+                // Если S3 работает, используем прямую ссылку
+                $contractUrl = 'https://fls-9fd6221b-0ca4-45b4-8af8-343326c54146.laravel.cloud/' . $pdfS3Path;
+                
+                Log::info('Files uploaded to S3 successfully');
+                
+            } catch (\Exception $e) {
+                // Fallback: сохраняем локально
+                $localPdfPath = storage_path('app/contracts/' . $filename . '.pdf');
+                @mkdir(dirname($localPdfPath), 0775, true);
+                copy($pdfPath, $localPdfPath);
+                
+                Log::warning('S3 upload failed, using local storage', [
+                    'error' => $e->getMessage()
+                ]);
+            }
             
             Log::info('Contract generated successfully', [
                 'filename' => $filename,
@@ -142,8 +197,6 @@ class ContractController extends Controller
                 'pdf_path' => $pdfPath
             ]);
             
-            // Возвращаем JSON с ссылкой на PDF файл
-            $contractUrl = url('api/contract/download/'.$filename.'.pdf');
             
             // Сохраняем информацию о договоре в кеш для защиты от повторных запросов
             $contractData = [
@@ -176,15 +229,38 @@ class ContractController extends Controller
 
     public function download($filename)
     {
-        $pdfPath = storage_path('app/contracts/' . $filename);
-        
-        if (file_exists($pdfPath)) {
-            return response()->download($pdfPath, $filename, [
-                'Content-Type' => 'application/pdf'
+        // Сначала пытаемся получить файл из S3
+        try {
+            $s3Client = $this->getS3Client();
+            $bucket = 'fls-9fd6221b-0ca4-45b4-8af8-343326c54146';
+            $s3Path = 'contracts/' . $filename;
+            
+            $result = $s3Client->getObject([
+                'Bucket' => $bucket,
+                'Key' => $s3Path,
             ]);
+            
+            return response($result['Body'], 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"'
+            ]);
+        } catch (\Exception $e) {
+            // Fallback: проверяем локальное хранение
+            $localPath = storage_path('app/contracts/' . $filename);
+            
+            if (file_exists($localPath)) {
+                return response()->download($localPath, $filename, [
+                    'Content-Type' => 'application/pdf'
+                ]);
+            }
+            
+            Log::error('File not found in S3 or local storage', [
+                'filename' => $filename,
+                's3_error' => $e->getMessage()
+            ]);
+            
+            return response()->json(['error' => 'File not found'], 404);
         }
-        
-        return response()->json(['error' => 'File not found'], 404);
     }
 
     public function uploadSigned(Request $request)
