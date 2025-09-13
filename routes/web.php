@@ -8,6 +8,16 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Static form without sessions
+Route::get('/form', function () {
+    return response()->view('contract-minimal')->withoutMiddleware([\Illuminate\Session\Middleware\StartSession::class]);
+});
+
+// Ultra simple form
+Route::get('/ultra', function () {
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Договор</title></head><body><h1>Формирование договора</h1><form id="f"><input name="client_full_name" placeholder="ФИО" value="Тест" required><br><br><input name="passport_full" placeholder="Паспорт" value="1234 567890" required><br><br><input name="inn" placeholder="ИНН" value="123456789012" required><br><br><input name="client_address" placeholder="Адрес" value="Москва" required><br><br><input name="bank_name" placeholder="Банк" value="Сбербанк" required><br><br><input name="bank_account" placeholder="Счет" value="12345678901234567890" required><br><br><input name="bank_bik" placeholder="БИК" value="123456789" required><br><br><button type="submit">Сформировать</button></form><div id="r"></div><script>document.getElementById("f").onsubmit=async function(e){e.preventDefault();const d=Object.fromEntries(new FormData(this));try{const r=await fetch("/api/contract/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});const j=await r.json();if(j.success)document.getElementById("r").innerHTML="<a href="+j.contract_url+" target=_blank>Скачать</a>";else document.getElementById("r").innerHTML="Ошибка";}catch(e){document.getElementById("r").innerHTML="Ошибка сети";}};</script></body></html>';
+});
+
 // Contract form landing page
 Route::get('/contract', [ContractController::class, 'showForm'])->name('contract.form');
 Route::get('/contract-minimal', [ContractController::class, 'showMinimalForm'])->name('contract.minimal');
