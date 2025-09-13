@@ -10,6 +10,7 @@ Route::get('/', function () {
 
 // Contract form landing page
 Route::get('/contract', [ContractController::class, 'showForm'])->name('contract.form');
+Route::get('/contract-simple', [ContractController::class, 'showSimpleForm'])->name('contract.simple');
 
 // Contract generation API
 Route::post('/api/contract/generate', [ContractController::class, 'generate'])

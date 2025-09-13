@@ -33,6 +33,11 @@ class ContractController extends Controller
         return view('contract-form');
     }
 
+    public function showSimpleForm()
+    {
+        return view('contract-simple');
+    }
+
     public function generate(Request $request)
     {
         $data = $request->validate([
