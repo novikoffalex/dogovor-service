@@ -19,3 +19,7 @@ Route::post('/api/manychat/contract', [ManychatContractController::class, 'gener
 Route::post('/api/zamzar/webhook', [ManychatContractController::class, 'zamzarWebhook'])
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
     ->middleware('api');
+
+// File download routes
+Route::get('/api/manychat/contract/pdf/{filename}', [ManychatContractController::class, 'getPdf']);
+Route::get('/api/manychat/contract/docx/{filename}', [ManychatContractController::class, 'getDocx']);

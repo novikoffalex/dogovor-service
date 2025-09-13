@@ -119,8 +119,8 @@ class ManychatContractController extends Controller
                 'public_path' => $publicPath
             ]);
             
-            // Возвращаем JSON с ссылкой на файл
-            $contractUrl = url('storage/'.$publicPath);
+            // Возвращаем JSON с ссылкой на API эндпоинт
+            $contractUrl = url('api/manychat/contract/docx/'.$filename.'.docx');
             
             return response()->json([
                 'success' => true,
@@ -154,6 +154,21 @@ class ManychatContractController extends Controller
         }
         
         return response()->json(['error' => 'PDF not found'], 404);
+    }
+
+    public function getDocx($filename)
+    {
+        // Убираем расширение .docx если оно есть в filename
+        $baseFilename = str_replace('.docx', '', $filename);
+        $docxPath = storage_path('app/public/contracts/' . $baseFilename . '.docx');
+        
+        if (file_exists($docxPath)) {
+            return response()->download($docxPath, $baseFilename . '.docx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ]);
+        }
+        
+        return response()->json(['error' => 'DOCX not found'], 404);
     }
 
     public function testPdf()
