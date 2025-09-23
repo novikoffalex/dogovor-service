@@ -112,7 +112,18 @@ class ContractController extends Controller
             $tpl = new TemplateProcessor(resource_path('contracts/contract.docx'));
             
             foreach ($data as $key => $value) {
-                $tpl->setValue($key, $value);
+                if ($key === 'crypto_wallet_address') {
+                    // Для криптокошелька показываем "не указан" если пусто
+                    $displayValue = empty($value) ? 'не указан' : $value;
+                    Log::info('Processing crypto_wallet_address', [
+                        'original_value' => $value,
+                        'display_value' => $displayValue,
+                        'is_empty' => empty($value)
+                    ]);
+                    $tpl->setValue($key, $displayValue);
+                } else {
+                    $tpl->setValue($key, $value);
+                }
             }
 
             $safeName = Str::slug($data['client_full_name'], '_');
