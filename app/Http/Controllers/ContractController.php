@@ -42,10 +42,6 @@ class ContractController extends Controller
             $address = $data['crypto_wallet_address'];
             $type = $data['crypto_type'];
             
-            Log::info('Validating crypto address', [
-                'address' => $address,
-                'type' => $type
-            ]);
             
             $isValid = false;
             $errorMessage = '';
@@ -55,10 +51,8 @@ class ContractController extends Controller
                     // Tron адреса начинаются с 'T' и содержат только буквы и цифры (34 символа)
                     if (preg_match('/^T[A-Za-z0-9]{33}$/', $address)) {
                         $isValid = true;
-                        Log::info('Tron address is valid');
                     } else {
                         $errorMessage = 'Tron адрес должен начинаться с буквы T и содержать 34 символа (буквы и цифры)';
-                        Log::info('Tron address is invalid', ['address' => $address]);
                     }
                     break;
                     
@@ -83,11 +77,6 @@ class ContractController extends Controller
             }
             
             if (!$isValid) {
-                Log::info('Crypto address validation failed', [
-                    'address' => $address,
-                    'type' => $type,
-                    'error' => $errorMessage
-                ]);
                 return response()->json([
                     'success' => false,
                     'message' => $errorMessage
