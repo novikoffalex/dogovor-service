@@ -85,12 +85,6 @@
                                        class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                        x-model="form.bank_bik">
                             </div>
-                            <div>
-                                <label for="bank_swift" class="block text-sm font-medium text-gray-700">SWIFT</label>
-                                <input type="text" id="bank_swift" name="bank_swift"
-                                       class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                       x-model="form.bank_swift">
-                            </div>
                             <div class="md:col-span-2">
                                 <label for="crypto_wallet_address" class="block text-sm font-medium text-gray-700">Адрес криптокошелька</label>
                                 <input type="text" id="crypto_wallet_address" name="crypto_wallet_address"
@@ -206,7 +200,6 @@
                     bank_name: '',
                     bank_account: '',
                     bank_bik: '',
-                    bank_swift: '',
                     crypto_wallet_address: '',
                     signed_contract: null
                 },

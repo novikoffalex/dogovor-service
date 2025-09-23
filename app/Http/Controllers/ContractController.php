@@ -31,7 +31,6 @@ class ContractController extends Controller
             'bank_name'        => 'required|string|max:255',
             'bank_account'     => 'required|string|max:50',
             'bank_bik'         => 'required|string|max:20',
-            'bank_swift'       => 'nullable|string|max:20',
             'crypto_wallet_address' => 'nullable|string|max:255',
             'contract_number'  => 'nullable|string|max:50',
         ]);
@@ -93,8 +92,6 @@ class ContractController extends Controller
             } elseif ($k === 'bank_account') {
                 $cleanValue = Str::limit($cleanValue, 50);
             } elseif ($k === 'bank_bik') {
-                $cleanValue = Str::limit($cleanValue, 20);
-            } elseif ($k === 'bank_swift') {
                 $cleanValue = Str::limit($cleanValue, 20);
             } elseif ($k === 'inn') {
                 $cleanValue = Str::limit($cleanValue, 20);
