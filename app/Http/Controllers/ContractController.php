@@ -32,6 +32,7 @@ class ContractController extends Controller
             'bank_name'        => 'required|string|max:255',
             'bank_account'     => 'required|string|max:50',
             'bank_bik'         => 'required|string|max:20',
+            'crypto_type' => 'nullable|string|max:50',
             'crypto_wallet_address' => 'nullable|string|max:255',
             'contract_number'  => 'nullable|string|max:50',
         ]);
@@ -126,13 +127,27 @@ class ContractController extends Controller
             
             foreach ($data as $key => $value) {
                 if ($key === 'crypto_wallet_address') {
-                    // Для криптокошелька показываем "не указан" если пусто
-                    $displayValue = empty($value) ? 'не указан' : $value;
+                    // Формируем строку с типом и адресом криптокошелька
+                    if (!empty($data['crypto_type']) && !empty($value)) {
+                        $cryptoLabels = [
+                            'tron' => 'Tron (TRC 20) USDT',
+                            'ethereum' => 'Ethereum (ERC-20) USDT',
+                            'btc' => 'BTC',
+                            'eth' => 'ETH'
+                        ];
+                        $cryptoLabel = $cryptoLabels[$data['crypto_type']] ?? $data['crypto_type'];
+                        $displayValue = "Адрес кошелька {$cryptoLabel}: {$value}";
+                    } else {
+                        $displayValue = 'не указан';
+                    }
+                    
                     Log::info('Processing crypto_wallet_address', [
+                        'crypto_type' => $data['crypto_type'] ?? 'none',
                         'original_value' => $value,
                         'display_value' => $displayValue,
                         'is_empty' => empty($value)
                     ]);
+                    
                     $tpl->setValue($key, $displayValue);
                 } else {
                     $tpl->setValue($key, $value);

@@ -86,11 +86,42 @@
                                        x-model="form.bank_bik">
                             </div>
                             <div class="md:col-span-2">
-                                <label for="crypto_wallet_address" class="block text-sm font-medium text-gray-700">Адрес криптокошелька</label>
-                                <input type="text" id="crypto_wallet_address" name="crypto_wallet_address"
-                                       placeholder="Введите адрес криптокошелька (BTC, ETH, USDT и т.д.)"
-                                       class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                       x-model="form.crypto_wallet_address">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Тип криптокошелька</label>
+                                <div class="grid grid-cols-2 gap-2 mb-4">
+                                    <button type="button" 
+                                            @click="selectCryptoType('tron')"
+                                            :class="form.crypto_type === 'tron' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                                        Tron (TRC 20)
+                                    </button>
+                                    <button type="button" 
+                                            @click="selectCryptoType('ethereum')"
+                                            :class="form.crypto_type === 'ethereum' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                                        Ethereum (ERC-20)
+                                    </button>
+                                    <button type="button" 
+                                            @click="selectCryptoType('btc')"
+                                            :class="form.crypto_type === 'btc' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                                        BTC
+                                    </button>
+                                    <button type="button" 
+                                            @click="selectCryptoType('eth')"
+                                            :class="form.crypto_type === 'eth' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                                        ETH
+                                    </button>
+                                </div>
+                                <div x-show="form.crypto_type" class="mb-4">
+                                    <label for="crypto_wallet_address" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Адрес кошелька <span x-text="getCryptoTypeLabel()"></span>
+                                    </label>
+                                    <input type="text" id="crypto_wallet_address" name="crypto_wallet_address"
+                                           x-bind:placeholder="getCryptoPlaceholder()"
+                                           class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                           x-model="form.crypto_wallet_address">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -200,6 +231,7 @@
                     bank_name: '',
                     bank_account: '',
                     bank_bik: '',
+                    crypto_type: '',
                     crypto_wallet_address: '',
                     signed_contract: null
                 },
@@ -213,6 +245,31 @@
                 pdfReady: false,
                 pdfChecking: false,
                 pdfDownloadUrl: '',
+
+                selectCryptoType(type) {
+                    this.form.crypto_type = type;
+                    this.form.crypto_wallet_address = ''; // Очищаем адрес при смене типа
+                },
+
+                getCryptoTypeLabel() {
+                    const labels = {
+                        'tron': 'Tron (TRC 20) USDT',
+                        'ethereum': 'Ethereum (ERC-20) USDT',
+                        'btc': 'BTC',
+                        'eth': 'ETH'
+                    };
+                    return labels[this.form.crypto_type] || '';
+                },
+
+                getCryptoPlaceholder() {
+                    const placeholders = {
+                        'tron': 'Введите адрес Tron (TRC 20) USDT кошелька',
+                        'ethereum': 'Введите адрес Ethereum (ERC-20) USDT кошелька',
+                        'btc': 'Введите адрес Bitcoin кошелька',
+                        'eth': 'Введите адрес Ethereum кошелька'
+                    };
+                    return placeholders[this.form.crypto_type] || 'Введите адрес кошелька';
+                },
 
                 async submitForm() {
                     this.loading = true;
