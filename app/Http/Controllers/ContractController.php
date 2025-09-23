@@ -32,10 +32,56 @@ class ContractController extends Controller
             'bank_name'        => 'required|string|max:255',
             'bank_account'     => 'required|string|max:50',
             'bank_bik'         => 'required|string|max:20',
-            'crypto_type' => 'nullable|string|max:50',
+            'crypto_type' => 'nullable|string|max:50|in:tron,ethereum,btc,eth',
             'crypto_wallet_address' => 'nullable|string|max:255',
             'contract_number'  => 'nullable|string|max:50',
         ]);
+
+        // Валидация адреса криптокошелька в зависимости от типа
+        if (!empty($data['crypto_wallet_address']) && !empty($data['crypto_type'])) {
+            $address = $data['crypto_wallet_address'];
+            $type = $data['crypto_type'];
+            
+            $isValid = false;
+            $errorMessage = '';
+            
+            switch ($type) {
+                case 'tron':
+                    // Tron адреса начинаются с 'T' и содержат только буквы и цифры (34 символа)
+                    if (preg_match('/^T[A-Za-z0-9]{33}$/', $address)) {
+                        $isValid = true;
+                    } else {
+                        $errorMessage = 'Tron адрес должен начинаться с буквы T и содержать 34 символа (буквы и цифры)';
+                    }
+                    break;
+                    
+                case 'ethereum':
+                case 'eth':
+                    // Ethereum адреса начинаются с '0x' и содержат 40 шестнадцатеричных символов
+                    if (preg_match('/^0x[a-fA-F0-9]{40}$/', $address)) {
+                        $isValid = true;
+                    } else {
+                        $errorMessage = 'Ethereum адрес должен начинаться с 0x и содержать 40 шестнадцатеричных символов';
+                    }
+                    break;
+                    
+                case 'btc':
+                    // Bitcoin адреса: Legacy (1), P2SH (3), Bech32 (bc1)
+                    if (preg_match('/^(1[a-zA-Z0-9]{25,34}|3[a-zA-Z0-9]{25,34}|bc1[a-zA-Z0-9]{39,59})$/', $address)) {
+                        $isValid = true;
+                    } else {
+                        $errorMessage = 'Bitcoin адрес должен начинаться с 1 (Legacy), 3 (P2SH) или bc1 (Bech32)';
+                    }
+                    break;
+            }
+            
+            if (!$isValid) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $errorMessage
+                ], 400);
+            }
+        }
 
         // Парсим passport_full если отдельные поля не заполнены
         if (empty($data['passport_series']) && empty($data['passport_number']) && !empty($data['passport_full'])) {
