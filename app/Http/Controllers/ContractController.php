@@ -66,7 +66,31 @@ class ContractController extends Controller
             
             // Сохраняем счетчик в файл
             @mkdir(dirname($counterFile), 0775, true);
-            file_put_contents($counterFile, $counter);
+            $writeResult = file_put_contents($counterFile, $counter);
+            
+            // Альтернативный способ через кеш, если файловый не работает
+            if ($writeResult === false) {
+                $cacheKey = "contract_counter_{$today}";
+                $cachedCounter = Cache::get($cacheKey, 0);
+                $counter = $cachedCounter + 1;
+                Cache::put($cacheKey, $counter, now()->addDays(1));
+                Log::warning('File counter failed, using cache counter', [
+                    'today' => $today,
+                    'cache_key' => $cacheKey,
+                    'cached_counter' => $cachedCounter,
+                    'new_counter' => $counter
+                ]);
+            }
+            
+            // Логируем информацию о счетчике для отладки
+            Log::info('Contract counter processing', [
+                'today' => $today,
+                'counter_file' => $counterFile,
+                'counter_value' => $counter,
+                'file_exists' => file_exists($counterFile),
+                'write_result' => $writeResult,
+                'file_contents_after' => file_exists($counterFile) ? file_get_contents($counterFile) : 'file_not_exists'
+            ]);
             
             $data['contract_number'] = $today . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT);
         }
