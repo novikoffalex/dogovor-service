@@ -137,18 +137,24 @@ class ContractController extends Controller
                         ];
                         $cryptoLabel = $cryptoLabels[$data['crypto_type']] ?? $data['crypto_type'];
                         $displayValue = "{$cryptoLabel}: {$value}";
+                        
+                        Log::info('Processing crypto_wallet_address', [
+                            'crypto_type' => $data['crypto_type'] ?? 'none',
+                            'original_value' => $value,
+                            'display_value' => $displayValue,
+                            'is_empty' => empty($value)
+                        ]);
+                        
+                        $tpl->setValue($key, $displayValue);
                     } else {
-                        $displayValue = 'не указан';
+                        // Если поле пустое, заменяем placeholder на пустую строку
+                        Log::info('Skipping crypto_wallet_address - empty or no type', [
+                            'crypto_type' => $data['crypto_type'] ?? 'none',
+                            'original_value' => $value,
+                            'is_empty' => empty($value)
+                        ]);
+                        $tpl->setValue($key, '');
                     }
-                    
-                    Log::info('Processing crypto_wallet_address', [
-                        'crypto_type' => $data['crypto_type'] ?? 'none',
-                        'original_value' => $value,
-                        'display_value' => $displayValue,
-                        'is_empty' => empty($value)
-                    ]);
-                    
-                    $tpl->setValue($key, $displayValue);
                 } else {
                     $tpl->setValue($key, $value);
                 }
