@@ -104,3 +104,4 @@ php artisan route:clear
 3. `POST /api/contract/send-to-manychat` - отправка ссылки в ManyChat
 
 Все endpoints работают без CSRF токенов для интеграции с внешними системами.
+
