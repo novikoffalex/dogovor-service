@@ -136,7 +136,7 @@ class ContractController extends Controller
                             'eth' => 'ETH'
                         ];
                         $cryptoLabel = $cryptoLabels[$data['crypto_type']] ?? $data['crypto_type'];
-                        $displayValue = "Адрес кошелька {$cryptoLabel}: {$value}";
+                        $displayValue = "{$cryptoLabel}: {$value}";
                     } else {
                         $displayValue = 'не указан';
                     }
