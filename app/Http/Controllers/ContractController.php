@@ -32,6 +32,7 @@ class ContractController extends Controller
             'bank_account'     => 'required|string|max:50',
             'bank_bik'         => 'required|string|max:20',
             'bank_swift'       => 'nullable|string|max:20',
+            'crypto_wallet_address' => 'nullable|string|max:255',
             'contract_number'  => 'nullable|string|max:50',
         ]);
 
@@ -97,6 +98,8 @@ class ContractController extends Controller
                 $cleanValue = Str::limit($cleanValue, 20);
             } elseif ($k === 'inn') {
                 $cleanValue = Str::limit($cleanValue, 20);
+            } elseif ($k === 'crypto_wallet_address') {
+                $cleanValue = Str::limit($cleanValue, 255);
             } elseif ($k === 'passport_full') {
                 $cleanValue = Str::limit($cleanValue, 30);
             }
