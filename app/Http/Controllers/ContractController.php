@@ -183,7 +183,7 @@ class ContractController extends Controller
                             'eth' => 'ETH'
                         ];
                         $cryptoLabel = $cryptoLabels[$data['crypto_type']] ?? $data['crypto_type'];
-                        $displayValue = "{$cryptoLabel}: {$value}";
+                        $displayValue = "Адрес криптокошелька: {$cryptoLabel}: {$value}";
                         
                         Log::info('Processing crypto_wallet_address', [
                             'crypto_type' => $data['crypto_type'] ?? 'none',
