@@ -22,6 +22,9 @@ class ContractController extends Controller
 
     public function generate(Request $request)
     {
+        // Auto-setup contract counter if needed
+        $this->checkAndSetupCounter();
+        
         $data = $request->validate([
             'client_full_name' => 'required|string|max:255',
             'passport_series'  => 'nullable|string|max:10',
@@ -587,6 +590,40 @@ class ContractController extends Controller
             ]);
             
             return response()->json(['error' => 'Webhook processing failed'], 500);
+        }
+    }
+
+    private function checkAndSetupCounter()
+    {
+        try {
+            // Check if table exists
+            if (!\Illuminate\Support\Facades\Schema::hasTable('contract_counters')) {
+                \Illuminate\Support\Facades\DB::statement('CREATE TABLE IF NOT EXISTS contract_counters (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date DATE UNIQUE NOT NULL,
+                    counter INTEGER DEFAULT 0,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )');
+            }
+
+            // Initialize today's counter if not exists
+            $today = now()->toDateString();
+            $counter = \Illuminate\Support\Facades\DB::table('contract_counters')
+                ->where('date', $today)
+                ->first();
+
+            if (!$counter) {
+                \Illuminate\Support\Facades\DB::table('contract_counters')->insert([
+                    'date' => $today,
+                    'counter' => 21, // Set to current server state
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Silently fail - fallback to file counter
+            \Log::info('Contract counter setup failed, using file counter', ['error' => $e->getMessage()]);
         }
     }
 }
