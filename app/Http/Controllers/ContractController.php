@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use App\Models\ContractCounter;
 use PhpOffice\PhpWord\TemplateProcessor;
 use App\Jobs\GenerateContractJob;
 use Zamzar\ZamzarClient;
@@ -51,46 +52,37 @@ class ContractController extends Controller
         if (empty($data['contract_number'])) {
             $today = now()->format('Ymd');
             
-            // Используем файловый счетчик с датой для уникальности по дням
-            $counterFile = storage_path('app/contract_counter_' . $today . '.txt');
-            $counter = 1;
-            
-            if (file_exists($counterFile)) {
-                $counter = (int)file_get_contents($counterFile) + 1;
+            try {
+                // Используем базу данных для счетчика (более надежно)
+                $counter = ContractCounter::incrementCounterForDate(now()->toDateString());
+                
+                Log::info('Contract counter from database', [
+                    'today' => $today,
+                    'counter_value' => $counter
+                ]);
+                
+            } catch (\Exception $e) {
+                // Fallback к файловому счетчику, если БД недоступна
+                Log::warning('Database counter failed, using file counter', [
+                    'error' => $e->getMessage(),
+                    'today' => $today
+                ]);
+                
+                $counterFile = storage_path('app/contract_counter_' . $today . '.txt');
+                $counter = 1;
+                
+                if (file_exists($counterFile)) {
+                    $counter = (int)file_get_contents($counterFile) + 1;
+                }
+                
+                @mkdir(dirname($counterFile), 0775, true);
+                file_put_contents($counterFile, $counter);
             }
             
             // Если счетчик превысил 999, сбрасываем на 1
             if ($counter > 999) {
                 $counter = 1;
             }
-            
-            // Сохраняем счетчик в файл
-            @mkdir(dirname($counterFile), 0775, true);
-            $writeResult = file_put_contents($counterFile, $counter);
-            
-            // Альтернативный способ через кеш, если файловый не работает
-            if ($writeResult === false) {
-                $cacheKey = "contract_counter_{$today}";
-                $cachedCounter = Cache::get($cacheKey, 0);
-                $counter = $cachedCounter + 1;
-                Cache::put($cacheKey, $counter, now()->addDays(1));
-                Log::warning('File counter failed, using cache counter', [
-                    'today' => $today,
-                    'cache_key' => $cacheKey,
-                    'cached_counter' => $cachedCounter,
-                    'new_counter' => $counter
-                ]);
-            }
-            
-            // Логируем информацию о счетчике для отладки
-            Log::info('Contract counter processing', [
-                'today' => $today,
-                'counter_file' => $counterFile,
-                'counter_value' => $counter,
-                'file_exists' => file_exists($counterFile),
-                'write_result' => $writeResult,
-                'file_contents_after' => file_exists($counterFile) ? file_get_contents($counterFile) : 'file_not_exists'
-            ]);
             
             $data['contract_number'] = $today . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT);
         }
