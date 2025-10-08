@@ -54,3 +54,4 @@ class SetupContractCounter extends Command
         $this->info('Contract counter setup completed!');
     }
 }
+

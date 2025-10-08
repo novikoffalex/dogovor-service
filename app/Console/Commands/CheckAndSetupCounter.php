@@ -48,3 +48,4 @@ class CheckAndSetupCounter extends Command
         $this->info('Contract counter check completed!');
     }
 }
+

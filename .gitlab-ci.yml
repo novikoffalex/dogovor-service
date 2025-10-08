@@ -11,3 +11,4 @@ deploy:
     - php artisan view:cache
   only:
     - main
+

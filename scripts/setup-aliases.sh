@@ -46,3 +46,4 @@ else
     echo "alias server-zamzar='php scripts/server-manager.php check-zamzar'"
     echo "alias server-exec='php scripts/server-manager.php execute'"
 fi
+

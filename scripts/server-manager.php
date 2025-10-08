@@ -215,3 +215,4 @@ $args = array_slice($argv, 2);
 
 $manager = new ServerManager();
 $manager->run($command, $args);
+

@@ -1,0 +1,38 @@
+{
+  "name": "Dogovor Service",
+  "description": "Contract generation service with crypto wallet support",
+  "keywords": ["laravel", "php", "contracts", "pdf", "crypto"],
+  "website": "https://crypto-exchange.kz",
+  "repository": "https://github.com/your-username/dogovor-service",
+  "env": {
+    "APP_KEY": {
+      "description": "Laravel application key",
+      "generator": "secret"
+    },
+    "APP_ENV": {
+      "description": "Application environment",
+      "value": "production"
+    },
+    "APP_DEBUG": {
+      "description": "Enable debug mode",
+      "value": "false"
+    },
+    "APP_URL": {
+      "description": "Application URL",
+      "value": "https://crypto-exchange.kz"
+    },
+    "LOG_CHANNEL": {
+      "value": "stack"
+    },
+    "DB_CONNECTION": {
+      "value": "sqlite"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/php"
+    }
+  ],
+  "stack": "heroku-22",
+  "addons": []
+}

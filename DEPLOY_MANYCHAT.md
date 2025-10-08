@@ -113,3 +113,4 @@ php artisan queue:restart
 2. Проверить статус Git: `git status`
 3. Откатиться к `v1.1.2-stable`
 
+

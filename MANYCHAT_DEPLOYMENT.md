@@ -105,3 +105,4 @@ php artisan route:clear
 
 Все endpoints работают без CSRF токенов для интеграции с внешними системами.
 
+
