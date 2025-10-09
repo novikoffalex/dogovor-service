@@ -232,7 +232,7 @@ class ContractController extends Controller
             $this->convertToPdfAsync($tmpDocx, $filename);
             
             // Возвращаем JSON с ссылкой на DOCX файл (PDF будет готов позже)
-            $contractUrl = url('api/contract/download/'.$filename.'.docx');
+            $contractUrl = secure_url('api/contract/download/'.$filename.'.docx');
             
             // Временно отключаем кеширование для отладки
             // $contractData = [
@@ -249,7 +249,7 @@ class ContractController extends Controller
                 'filename' => $filename.'.docx',
                 'contract_number' => $data['contract_number'],
                 'pdf_status' => 'processing',
-                'pdf_status_url' => url('api/contract/check-pdf-status/' . $filename . '.docx')
+                'pdf_status_url' => secure_url('api/contract/check-pdf-status/' . $filename . '.docx')
             ]);
             
         } catch (\Exception $e) {
@@ -302,7 +302,7 @@ class ContractController extends Controller
             ]);
             
             // Генерируем публичную ссылку для ManyChat
-            $downloadUrl = url('api/contract/download-signed/' . $filename);
+            $downloadUrl = secure_url('api/contract/download-signed/' . $filename);
             
             return response()->json([
                 'success' => true,
@@ -399,7 +399,7 @@ class ContractController extends Controller
             ];
             
             if ($job['status'] === 'completed' && file_exists($pdfPath)) {
-                $response['pdf_url'] = url('api/contract/download-pdf/' . $baseFilename . '.pdf');
+                $response['pdf_url'] = secure_url('api/contract/download-pdf/' . $baseFilename . '.pdf');
                 $response['completed_at'] = $job['completed_at'] ?? null;
             } elseif ($job['status'] === 'failed') {
                 $response['failed_at'] = $job['failed_at'] ?? null;
