@@ -51,7 +51,9 @@ class ManychatContractController extends Controller
 
         // Проверяем, не существует ли уже договор для этого клиента
         $clientHash = md5($data['client_full_name'] . $data['inn'] . $data['passport_full']);
-        $existingContractKey = "contract_exists_{$clientHash}";
+        $templatePath = resource_path('contracts/contract.docx');
+        $templateHash = is_readable($templatePath) ? sha1_file($templatePath) : 'no_template';
+        $existingContractKey = "contract_exists_{$clientHash}_{$templateHash}";
         
         if (Cache::has($existingContractKey)) {
             $existingData = Cache::get($existingContractKey);
@@ -121,7 +123,18 @@ class ManychatContractController extends Controller
 
         try {
             // Генерируем DOCX
-            $tpl = new TemplateProcessor(resource_path('contracts/contract.docx'));
+            $tpl = new TemplateProcessor($templatePath);
+
+            // Логируем используемый шаблон, чтобы отлавливать "старые" версии
+            $templateInfo = [
+                'path' => $templatePath,
+                'mtime' => file_exists($templatePath) ? date('c', filemtime($templatePath)) : null,
+                'size' => file_exists($templatePath) ? filesize($templatePath) : null
+            ];
+            if (is_readable($templatePath)) {
+                $templateInfo['sha1'] = sha1_file($templatePath);
+            }
+            Log::info('Contract template info (ManyChat)', $templateInfo);
             
             foreach ($data as $key => $value) {
                 $tpl->setValue($key, $value);
@@ -149,7 +162,8 @@ class ManychatContractController extends Controller
             ]);
             
             // Возвращаем JSON с ссылкой на API эндпоинт
-            $contractUrl = url('api/manychat/contract/docx/'.$filename.'.docx');
+            $cacheBuster = now()->timestamp;
+            $contractUrl = url('api/manychat/contract/docx/'.$filename.'.docx') . '?v=' . $cacheBuster;
             
             // Сохраняем информацию о договоре в кеш для защиты от повторных запросов
             $contractData = [
@@ -187,7 +201,9 @@ class ManychatContractController extends Controller
         
         if (file_exists($pdfPath)) {
             return response()->download($pdfPath, $filename . '.pdf', [
-                'Content-Type' => 'application/pdf'
+                'Content-Type' => 'application/pdf',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache'
             ]);
         }
         
@@ -202,7 +218,9 @@ class ManychatContractController extends Controller
         
         if (file_exists($docxPath)) {
             return response()->download($docxPath, $baseFilename . '.docx', [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache'
             ]);
         }
         

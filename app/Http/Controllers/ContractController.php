@@ -173,7 +173,19 @@ class ContractController extends Controller
 
         try {
             // Генерируем DOCX
-            $tpl = new TemplateProcessor(resource_path('contracts/contract.docx'));
+            $templatePath = resource_path('contracts/contract.docx');
+            $tpl = new TemplateProcessor($templatePath);
+
+            // Логируем используемый шаблон, чтобы отлавливать "старые" версии
+            $templateInfo = [
+                'path' => $templatePath,
+                'mtime' => file_exists($templatePath) ? date('c', filemtime($templatePath)) : null,
+                'size' => file_exists($templatePath) ? filesize($templatePath) : null
+            ];
+            if (is_readable($templatePath)) {
+                $templateInfo['sha1'] = sha1_file($templatePath);
+            }
+            Log::info('Contract template info', $templateInfo);
             
             foreach ($data as $key => $value) {
                 if ($key === 'crypto_wallet_address') {
@@ -232,7 +244,8 @@ class ContractController extends Controller
             $this->convertToPdfAsync($tmpDocx, $filename);
             
             // Возвращаем JSON с ссылкой на DOCX файл (PDF будет готов позже)
-            $contractUrl = secure_url('api/contract/download/'.$filename.'.docx');
+            $cacheBuster = now()->timestamp;
+            $contractUrl = secure_url('api/contract/download/'.$filename.'.docx') . '?v=' . $cacheBuster;
             
             // Временно отключаем кеширование для отладки
             // $contractData = [
@@ -249,7 +262,7 @@ class ContractController extends Controller
                 'filename' => $filename.'.docx',
                 'contract_number' => $data['contract_number'],
                 'pdf_status' => 'processing',
-                'pdf_status_url' => secure_url('api/contract/check-pdf-status/' . $filename . '.docx')
+                'pdf_status_url' => secure_url('api/contract/check-pdf-status/' . $filename . '.docx') . '?v=' . $cacheBuster
             ]);
             
         } catch (\Exception $e) {
@@ -271,7 +284,9 @@ class ContractController extends Controller
         
         if (file_exists($docxPath)) {
             return response()->download($docxPath, $filename, [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache'
             ]);
         }
         
@@ -427,7 +442,9 @@ class ContractController extends Controller
         
         if (file_exists($pdfPath)) {
             return response()->download($pdfPath, $filename, [
-                'Content-Type' => 'application/pdf'
+                'Content-Type' => 'application/pdf',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache'
             ]);
         }
         
@@ -451,7 +468,9 @@ class ContractController extends Controller
             $contentType = $mimeTypes[$extension] ?? 'application/octet-stream';
             
             return response()->download($filePath, $filename, [
-                'Content-Type' => $contentType
+                'Content-Type' => $contentType,
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache'
             ]);
         }
         

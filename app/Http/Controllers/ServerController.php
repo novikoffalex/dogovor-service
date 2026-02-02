@@ -48,7 +48,8 @@ class ServerController extends Controller
                 'cache' => $this->checkCache(),
                 'storage' => $this->checkStorage(),
                 'contract_counter' => $this->checkContractCounter(),
-                'zamzar_jobs' => $this->checkZamzarJobs()
+                'zamzar_jobs' => $this->checkZamzarJobs(),
+                'template' => $this->checkTemplate()
             ];
 
             return response()->json([
@@ -193,6 +194,26 @@ class ServerController extends Controller
         } catch (\Exception $e) {
             return ['status' => 'error', 'error' => $e->getMessage()];
         }
+    }
+
+    private function checkTemplate()
+    {
+        $templatePath = resource_path('contracts/contract.docx');
+        $info = [
+            'path' => $templatePath,
+            'exists' => file_exists($templatePath),
+            'readable' => is_readable($templatePath)
+        ];
+
+        if ($info['exists']) {
+            $info['mtime'] = date('c', filemtime($templatePath));
+            $info['size'] = filesize($templatePath);
+        }
+        if ($info['readable']) {
+            $info['sha1'] = sha1_file($templatePath);
+        }
+
+        return $info;
     }
 }
 

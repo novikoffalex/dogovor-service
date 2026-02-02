@@ -50,14 +50,23 @@ class ServerManager
     private function apiCall($method, $endpoint, $data = null)
     {
         $url = $this->apiBase . $endpoint;
+        $caFile = $this->getCaFile();
         
         $options = [
             'http' => [
                 'method' => $method,
                 'header' => 'Content-Type: application/json',
                 'timeout' => 30
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true
             ]
         ];
+
+        if ($caFile) {
+            $options['ssl']['cafile'] = $caFile;
+        }
 
         if ($data && $method === 'POST') {
             $options['http']['content'] = json_encode($data);
@@ -67,6 +76,23 @@ class ServerManager
         $result = file_get_contents($url, false, $context);
         
         return $result ? json_decode($result, true) : null;
+    }
+
+    private function getCaFile()
+    {
+        $candidates = [
+            '/etc/ssl/cert.pem',
+            '/usr/local/etc/openssl@3/cert.pem',
+            '/opt/homebrew/etc/openssl@3/cert.pem'
+        ];
+
+        foreach ($candidates as $path) {
+            if (is_readable($path)) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 
     private function showStatus()
@@ -96,6 +122,14 @@ class ServerManager
                 echo "✅ " . $zamzar['total_jobs'] . " jobs (" . $zamzar['processing'] . " processing)\n";
             } else {
                 echo "❌ No jobs\n";
+            }
+
+            if (isset($status['template'])) {
+                $template = $status['template'];
+                $templateStatus = ($template['exists'] ?? false) ? '✅' : '❌';
+                $templateHash = $template['sha1'] ?? 'n/a';
+                $templateMtime = $template['mtime'] ?? 'n/a';
+                echo "  Template: {$templateStatus} sha1={$templateHash} mtime={$templateMtime}\n";
             }
         } else {
             echo "❌ Failed to get server status\n";

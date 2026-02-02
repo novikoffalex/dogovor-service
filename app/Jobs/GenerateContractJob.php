@@ -41,7 +41,19 @@ class GenerateContractJob implements ShouldQueue
             Log::info('Starting contract generation job', $this->data);
             
             // Генерируем DOCX из шаблона
-            $tpl = new TemplateProcessor(resource_path('contracts/contract.docx'));
+            $templatePath = resource_path('contracts/contract.docx');
+            $tpl = new TemplateProcessor($templatePath);
+
+            // Логируем используемый шаблон, чтобы отлавливать "старые" версии
+            $templateInfo = [
+                'path' => $templatePath,
+                'mtime' => file_exists($templatePath) ? date('c', filemtime($templatePath)) : null,
+                'size' => file_exists($templatePath) ? filesize($templatePath) : null
+            ];
+            if (is_readable($templatePath)) {
+                $templateInfo['sha1'] = sha1_file($templatePath);
+            }
+            Log::info('Contract template info (Job)', $templateInfo);
             
             // Ограничиваем длину полей
             foreach ($this->data as $k => $v) {
