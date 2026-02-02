@@ -49,7 +49,8 @@ class ServerController extends Controller
                 'storage' => $this->checkStorage(),
                 'contract_counter' => $this->checkContractCounter(),
                 'zamzar_jobs' => $this->checkZamzarJobs(),
-                'template' => $this->checkTemplate()
+                'template' => $this->checkTemplate(),
+                'app' => $this->checkAppInfo()
             ];
 
             return response()->json([
@@ -211,6 +212,21 @@ class ServerController extends Controller
         }
         if ($info['readable']) {
             $info['sha1'] = sha1_file($templatePath);
+        }
+
+        return $info;
+    }
+
+    private function checkAppInfo()
+    {
+        $commitPath = base_path('storage/app/deploy_commit.txt');
+        $info = [
+            'env' => config('app.env'),
+            'url' => config('app.url')
+        ];
+
+        if (file_exists($commitPath)) {
+            $info['commit'] = trim((string)file_get_contents($commitPath));
         }
 
         return $info;
